@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ShoppingCart, ArrowLeft, Star, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ShoppingCart, ArrowLeft, Heart, Share2 } from 'lucide-react'
 import api from '../../api/axios'
 import useAuthStore from '../../store/authStore'
 import useCartStore from '../../store/cartStore'
@@ -9,16 +9,7 @@ import toast from 'react-hot-toast'
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
 
-const useInView = (threshold = 0.1) => {
-  const ref = useRef(null)
-  const [inView, setInView] = useState(false)
-  useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setInView(true) }, { threshold })
-    if (ref.current) obs.observe(ref.current)
-    return () => obs.disconnect()
-  }, [])
-  return [ref, inView]
-}
+const API_URL = 'http://localhost:5000'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
@@ -36,9 +27,8 @@ export default function ProductDetailPage() {
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' })
   const [submittingReview, setSubmittingReview] = useState(false)
   const [visible, setVisible] = useState(false)
-
-  const [infoRef, infoInView] = useInView()
-  const [reviewRef, reviewInView] = useInView()
+  const [isFavorite, setIsFavorite] = useState(false)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
 
   const sizes = [
     { ml: 1, key: 'price_1ml' },
@@ -47,9 +37,7 @@ export default function ProductDetailPage() {
     { ml: 5, key: 'price_5ml' }
   ]
 
-  useEffect(() => {
-    fetchAll()
-  }, [id])
+  useEffect(() => { fetchAll() }, [id])
 
   const fetchAll = async () => {
     setLoading(true)
@@ -61,9 +49,15 @@ export default function ProductDetailPage() {
         api.get(`/recommendations/similar/${id}`)
       ])
       setProduct(productRes.data.product)
-      setReviews(reviewRes.data.reviews)
-      setSimilar(similarRes.data.products)
+      setReviews(reviewRes.data.reviews || [])
+      setSimilar(similarRes.data.products || [])
       setTimeout(() => setVisible(true), 100)
+      if (isAuthenticated) {
+        try {
+          const favRes = await api.get(`/favorites/check/${id}`)
+          setIsFavorite(favRes.data.is_favorite)
+        } catch {}
+      }
     } catch {
       toast.error('Produk tidak ditemukan')
       navigate('/catalog')
@@ -90,6 +84,38 @@ export default function ProductDetailPage() {
     }
   }
 
+  const handleToggleFavorite = async () => {
+    if (!isAuthenticated) { toast.error('Login dulu'); navigate('/login'); return }
+    setFavoriteLoading(true)
+    try {
+      const res = await api.post('/favorites/toggle', { product_id: product.product_id })
+      setIsFavorite(res.data.is_favorite)
+      toast.success(res.data.is_favorite ? 'Ditambahkan ke favorit!' : 'Dihapus dari favorit')
+    } catch { toast.error('Gagal') }
+    finally { setFavoriteLoading(false) }
+  }
+
+  const handleShare = async () => {
+    const shareData = {
+      title: `${product.brand} - ${product.product_name}`,
+      text: `Cek parfum ini di Decant Temcy! ${product.product_name} mulai dari ${formatRupiah(currentPrice)}/ml`,
+      url: window.location.href
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+      } else {
+        await navigator.clipboard.writeText(window.location.href)
+        toast.success('Link berhasil disalin!')
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        await navigator.clipboard.writeText(window.location.href)
+        toast.success('Link berhasil disalin!')
+      }
+    }
+  }
+
   const handleSubmitReview = async (e) => {
     e.preventDefault()
     if (!isAuthenticated) { toast.error('Login dulu'); return }
@@ -99,9 +125,9 @@ export default function ProductDetailPage() {
       toast.success('Review berhasil ditambahkan!')
       setReviewForm({ rating: 5, comment: '' })
       const res = await api.get(`/reviews/product/${id}`)
-      setReviews(res.data.reviews)
+      setReviews(res.data.reviews || [])
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal')
+      toast.error(err.response?.data?.message || 'Gagal mengirim ulasan')
     } finally {
       setSubmittingReview(false)
     }
@@ -120,7 +146,9 @@ export default function ProductDetailPage() {
           animation: 'rotate-slow 0.8s linear infinite',
           margin: '0 auto 16px'
         }} />
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Memuat produk...</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.1em' }}>
+          MEMUAT...
+        </p>
       </div>
     </div>
   )
@@ -130,7 +158,12 @@ export default function ProductDetailPage() {
   const currentPrice = product[sizes.find(s => s.ml === selectedSize)?.key] || 0
   const avgRating = reviews.length > 0
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-    : 0
+    : null
+
+  // Cek apakah ada data untuk ditampilkan
+  const hasNotes = !!(product.top_notes || product.middle_notes || product.base_notes)
+  const hasProscons = !!(product.pros || product.cons)
+  const hasInfoSection = hasNotes || hasProscons
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
@@ -140,28 +173,29 @@ export default function ProductDetailPage() {
         <button onClick={() => navigate(-1)} style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           color: 'var(--text-muted)', marginBottom: 40,
-          fontSize: '0.85rem', cursor: 'pointer',
-          transition: 'color 0.2s ease'
+          fontSize: '0.72rem', fontWeight: 800,
+          letterSpacing: '0.12em', textTransform: 'uppercase',
+          cursor: 'pointer', transition: 'color 0.2s ease',
+          background: 'none', border: 'none'
         }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-          <ArrowLeft size={16} /> Kembali
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+        >
+          <ArrowLeft size={14} /> KEMBALI
         </button>
 
-        {/* Main */}
+        {/* Main Grid */}
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 1fr',
-          gap: 64, marginBottom: 80,
+          gap: 64, marginBottom: 48,
           opacity: visible ? 1 : 0,
           transition: 'opacity 0.6s ease'
         }}>
-
-          {/* Left - Product Visual */}
+          {/* Left — Image */}
           <div style={{
             transform: visible ? 'translateX(0)' : 'translateX(-30px)',
             transition: 'transform 0.7s cubic-bezier(0.4,0,0.2,1) 0.1s'
           }}>
-            {/* Main Image */}
             <div style={{
               background: 'linear-gradient(135deg, var(--bg-card) 0%, var(--bg-elevated) 100%)',
               border: '1px solid var(--border-default)',
@@ -172,140 +206,131 @@ export default function ProductDetailPage() {
             }}>
               {/* Decorative circles */}
               <div style={{
-                position: 'absolute', width: 300, height: 300,
-                borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(200,16,46,0.08) 0%, transparent 70%)',
+                position: 'absolute', width: 300, height: 300, borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(240,46,41,0.08) 0%, transparent 70%)',
                 animation: 'float 5s ease-in-out infinite'
               }} />
               <div style={{
-                position: 'absolute', width: 200, height: 200,
-                borderRadius: '50%',
-                border: '1px solid rgba(200,16,46,0.08)',
+                position: 'absolute', width: 200, height: 200, borderRadius: '50%',
+                border: '1px solid rgba(240,46,41,0.06)',
                 animation: 'rotate-slow 20s linear infinite'
               }} />
-              <div style={{
-                position: 'absolute', width: 280, height: 280,
-                borderRadius: '50%',
-                border: '1px solid rgba(201,168,76,0.06)',
-                animation: 'rotate-reverse 15s linear infinite'
-              }} />
 
-              <div style={{ fontSize: '8rem', position: 'relative', zIndex: 1, animation: 'float 4s ease-in-out infinite' }}>
-                🧴
-              </div>
+              {product.image_filename && product.image_filename !== 'default.png' ? (
+                <img
+                  src={`${API_URL}/uploads/products/${product.image_filename}`}
+                  alt={product.product_name}
+                  style={{
+                    maxHeight: '85%', maxWidth: '85%',
+                    objectFit: 'contain', position: 'relative', zIndex: 1,
+                    filter: 'drop-shadow(0 12px 32px rgba(0,0,0,0.4))',
+                    animation: 'float 4s ease-in-out infinite'
+                  }}
+                />
+              ) : (
+                <div style={{
+                  fontSize: '8rem', position: 'relative', zIndex: 1,
+                  animation: 'float 4s ease-in-out infinite'
+                }}>🧴</div>
+              )}
 
-              {/* Brand badge */}
               <div style={{
-                position: 'absolute', top: 20, left: 20,
-                background: 'rgba(6,6,10,0.8)',
+                position: 'absolute', top: 16, left: 16,
+                background: 'rgba(6,6,10,0.85)',
                 backdropFilter: 'blur(8px)',
                 border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-full)',
-                padding: '6px 14px',
-                fontSize: '0.72rem', fontWeight: 700,
-                letterSpacing: '0.1em', textTransform: 'uppercase',
-                color: 'var(--accent-gold)'
-              }}>
-                {product.brand}
-              </div>
+                borderRadius: 'var(--radius-xs)',
+                padding: '5px 12px',
+                fontSize: '0.62rem', fontWeight: 800,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                color: 'var(--accent-red)'
+              }}>{product.brand}</div>
             </div>
 
-            {/* Info Chips */}
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {[
-                product.concentration,
-                product.gender,
-                product.longevity_display
-              ].filter(Boolean).map((tag, i) => (
+            {/* Tags */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[product.concentration, product.gender, product.longevity_display].filter(Boolean).map((tag, i) => (
                 <span key={i} style={{
-                  padding: '6px 14px',
+                  padding: '5px 12px',
                   background: 'var(--bg-card)',
                   border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: '0.78rem', color: 'var(--text-muted)'
+                  borderRadius: 'var(--radius-xs)',
+                  fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600
                 }}>{tag}</span>
               ))}
-              {avgRating > 0 && (
+              {avgRating && (
                 <span style={{
-                  padding: '6px 14px',
-                  background: 'rgba(201,168,76,0.08)',
-                  border: '1px solid rgba(201,168,76,0.2)',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: '0.78rem', color: 'var(--accent-gold)',
-                  display: 'flex', alignItems: 'center', gap: 4
-                }}>
-                  ⭐ {avgRating} ({reviews.length})
-                </span>
+                  padding: '5px 12px',
+                  background: 'rgba(240,46,41,0.06)',
+                  border: '1px solid rgba(240,46,41,0.15)',
+                  borderRadius: 'var(--radius-xs)',
+                  fontSize: '0.72rem', color: 'var(--accent-red)',
+                  fontWeight: 800, letterSpacing: '0.04em'
+                }}>⭐ {avgRating} ({reviews.length})</span>
               )}
             </div>
           </div>
 
-          {/* Right - Product Info */}
+          {/* Right — Info */}
           <div style={{
             transform: visible ? 'translateX(0)' : 'translateX(30px)',
             transition: 'transform 0.7s cubic-bezier(0.4,0,0.2,1) 0.2s'
           }}>
             <div style={{
-              fontSize: '0.68rem', fontWeight: 700,
-              letterSpacing: '0.2em', textTransform: 'uppercase',
-              color: 'var(--accent-red)', marginBottom: 12
-            }}>
-              {product.brand}
-            </div>
+              fontSize: '0.65rem', fontWeight: 800,
+              letterSpacing: '0.22em', textTransform: 'uppercase',
+              color: 'var(--accent-red)', marginBottom: 10
+            }}>{product.brand}</div>
 
             <h1 style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: 'clamp(1.8rem, 3vw, 2.5rem)',
-              fontWeight: 400, fontStyle: 'italic',
-              lineHeight: 1.15, marginBottom: 16
-            }}>
-              {product.product_name}
-            </h1>
+              fontSize: 'clamp(1.6rem, 3vw, 2.2rem)',
+              fontWeight: 900, letterSpacing: '-0.03em',
+              textTransform: 'uppercase', lineHeight: 1.1, marginBottom: 14
+            }}>{product.product_name}</h1>
 
             {product.inspirator && (
               <p style={{
-                fontSize: '0.82rem', color: 'var(--text-muted)',
-                marginBottom: 20, fontStyle: 'italic'
+                fontSize: '0.78rem', color: 'var(--text-muted)',
+                marginBottom: 18, fontWeight: 500
               }}>
-                Terinspirasi dari: <span style={{ color: 'var(--text-secondary)' }}>{product.inspirator}</span>
+                Inspirasi: <span style={{ color: 'var(--text-secondary)' }}>{product.inspirator}</span>
               </p>
             )}
 
             {product.description && (
               <p style={{
                 color: 'var(--text-secondary)', lineHeight: 1.9,
-                marginBottom: 32, fontSize: '0.9rem',
-                borderLeft: '2px solid rgba(200,16,46,0.3)',
+                marginBottom: 28, fontSize: '0.88rem', fontWeight: 400,
+                borderLeft: '2px solid rgba(240,46,41,0.3)',
                 paddingLeft: 16
-              }}>
-                {product.description}
-              </p>
+              }}>{product.description}</p>
             )}
 
             {/* Size Selector */}
-            <div style={{ marginBottom: 28 }}>
+            <div style={{ marginBottom: 24 }}>
               <div style={{
-                fontSize: '0.72rem', fontWeight: 700,
-                letterSpacing: '0.15em', textTransform: 'uppercase',
+                fontSize: '0.62rem', fontWeight: 800,
+                letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 12
-              }}>Pilih Ukuran</div>
-              <div style={{ display: 'flex', gap: 10 }}>
+              }}>PILIH UKURAN</div>
+              <div style={{ display: 'flex', gap: 8 }}>
                 {sizes.map(({ ml, key }) => product[key] > 0 && (
                   <button key={ml} onClick={() => setSelectedSize(ml)}
                     style={{
-                      padding: '10px 20px',
+                      padding: '10px 18px',
                       background: selectedSize === ml
-                        ? 'linear-gradient(135deg, var(--accent-red), #e11d48)'
+                        ? 'linear-gradient(135deg, var(--accent-red), #e11d18)'
                         : 'var(--bg-elevated)',
                       border: `1px solid ${selectedSize === ml ? 'transparent' : 'var(--border-default)'}`,
-                      borderRadius: 'var(--radius-md)',
+                      borderRadius: 'var(--radius-sm)',
                       color: selectedSize === ml ? 'white' : 'var(--text-secondary)',
-                      fontWeight: 600, cursor: 'pointer', fontSize: '0.88rem',
-                      boxShadow: selectedSize === ml ? '0 4px 16px rgba(200,16,46,0.3)' : 'none',
+                      fontWeight: 800, cursor: 'pointer',
+                      fontSize: '0.72rem', letterSpacing: '0.06em',
+                      boxShadow: selectedSize === ml ? '0 4px 14px rgba(240,46,41,0.3)' : 'none',
                       transition: 'all 0.2s ease'
                     }}>
                     {ml}ml
-                    <div style={{ fontSize: '0.68rem', fontWeight: 400, opacity: 0.8, marginTop: 2 }}>
+                    <div style={{ fontSize: '0.62rem', fontWeight: 600, opacity: 0.85, marginTop: 2 }}>
                       {formatRupiah(product[key])}
                     </div>
                   </button>
@@ -314,273 +339,325 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Price */}
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6, letterSpacing: '0.1em' }}>
-                HARGA
-              </div>
+            <div style={{ marginBottom: 24 }}>
               <div style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: '2.2rem', fontWeight: 400,
-                background: 'linear-gradient(135deg, var(--text-primary), var(--accent-red))',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-              }}>
-                {formatRupiah(currentPrice)}
-              </div>
+                fontSize: '0.62rem', fontWeight: 800,
+                letterSpacing: '0.18em', textTransform: 'uppercase',
+                color: 'var(--text-muted)', marginBottom: 6
+              }}>HARGA</div>
+              <div style={{
+                fontSize: '2rem', fontWeight: 900,
+                letterSpacing: '-0.03em', color: 'var(--accent-red)'
+              }}>{formatRupiah(currentPrice)}</div>
             </div>
 
             {/* Quantity */}
-            <div style={{ marginBottom: 32 }}>
+            <div style={{ marginBottom: 28 }}>
               <div style={{
-                fontSize: '0.72rem', fontWeight: 700,
-                letterSpacing: '0.15em', textTransform: 'uppercase',
+                fontSize: '0.62rem', fontWeight: 800,
+                letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 12
-              }}>Jumlah</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+              }}>JUMLAH</div>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
                 <button onClick={() => setQuantity(q => Math.max(1, q - 1))}
                   style={{
                     width: 40, height: 40,
                     background: 'var(--bg-elevated)',
                     border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-md) 0 0 var(--radius-md)',
-                    color: 'var(--text-primary)', fontSize: '1.2rem',
+                    borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)',
+                    color: 'var(--text-primary)', fontSize: '1.1rem',
                     cursor: 'pointer', display: 'flex',
                     alignItems: 'center', justifyContent: 'center'
                   }}>−</button>
                 <div style={{
-                  width: 56, height: 40, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
+                  width: 56, height: 40,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: 'var(--bg-card)',
                   border: '1px solid var(--border-default)',
                   borderLeft: 'none', borderRight: 'none',
-                  fontWeight: 700, fontSize: '0.95rem'
+                  fontWeight: 800, fontSize: '0.95rem'
                 }}>{quantity}</div>
                 <button onClick={() => setQuantity(q => q + 1)}
                   style={{
                     width: 40, height: 40,
                     background: 'var(--bg-elevated)',
                     border: '1px solid var(--border-default)',
-                    borderRadius: '0 var(--radius-md) var(--radius-md) 0',
-                    color: 'var(--text-primary)', fontSize: '1.2rem',
+                    borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+                    color: 'var(--text-primary)', fontSize: '1.1rem',
                     cursor: 'pointer', display: 'flex',
                     alignItems: 'center', justifyContent: 'center'
                   }}>+</button>
               </div>
             </div>
 
-            {/* Add to Cart Button */}
-            <button onClick={handleAddToCart} disabled={addingToCart}
-              style={{
-                width: '100%', padding: '16px',
-                background: addingToCart
-                  ? 'var(--border-hover)'
-                  : 'linear-gradient(135deg, var(--accent-red), #e11d48)',
-                color: 'white', fontWeight: 700,
-                fontSize: '0.9rem', letterSpacing: '0.08em',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                border: 'none', cursor: addingToCart ? 'not-allowed' : 'pointer',
-                boxShadow: addingToCart ? 'none' : '0 8px 32px rgba(200,16,46,0.35)',
-                transition: 'all 0.3s ease',
-                textTransform: 'uppercase'
-              }}
-              onMouseEnter={e => {
-                if (!addingToCart) {
-                  e.currentTarget.style.transform = 'translateY(-2px)'
-                  e.currentTarget.style.boxShadow = '0 12px 40px rgba(200,16,46,0.45)'
-                }
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = addingToCart ? 'none' : '0 8px 32px rgba(200,16,46,0.35)'
-              }}>
-              <ShoppingCart size={18} />
-              {addingToCart ? 'Menambahkan...' : 'Tambah ke Keranjang'}
-            </button>
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button onClick={handleAddToCart} disabled={addingToCart}
+                style={{
+                  width: '100%', padding: '15px',
+                  background: addingToCart ? 'var(--border-hover)' : 'var(--accent-red)',
+                  color: 'white', fontWeight: 800, fontSize: '0.78rem',
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  borderRadius: 'var(--radius-sm)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  border: 'none', cursor: addingToCart ? 'not-allowed' : 'pointer',
+                  boxShadow: addingToCart ? 'none' : '0 4px 20px rgba(240,46,41,0.35)',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseEnter={e => {
+                  if (!addingToCart) {
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 8px 28px rgba(240,46,41,0.45)'
+                  }
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = addingToCart ? 'none' : '0 4px 20px rgba(240,46,41,0.35)'
+                }}>
+                <ShoppingCart size={16} />
+                {addingToCart ? 'MENAMBAHKAN...' : 'TAMBAH KE KERANJANG'}
+              </button>
+
+              <button onClick={handleToggleFavorite} disabled={favoriteLoading}
+                style={{
+                  width: '100%', padding: '13px',
+                  background: isFavorite ? 'rgba(239,68,68,0.08)' : 'var(--bg-elevated)',
+                  border: `1px solid ${isFavorite ? 'rgba(239,68,68,0.3)' : 'var(--border-default)'}`,
+                  color: isFavorite ? '#ef4444' : 'var(--text-secondary)',
+                  fontWeight: 800, fontSize: '0.72rem',
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: favoriteLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => {
+                  if (!favoriteLoading && !isFavorite) {
+                    e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'
+                    e.currentTarget.style.color = '#ef4444'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isFavorite) {
+                    e.currentTarget.style.borderColor = 'var(--border-default)'
+                    e.currentTarget.style.color = 'var(--text-secondary)'
+                  }
+                }}>
+                <Heart size={15} fill={isFavorite ? 'currentColor' : 'none'} />
+                {isFavorite ? 'TERSIMPAN DI FAVORIT' : 'SIMPAN KE FAVORIT'}
+              </button>
+
+	      <button onClick={handleShare}
+  		style={{
+    		  width: '100%', padding: '13px',
+    		  background: 'var(--bg-elevated)',
+    		  border: '1px solid var(--border-default)',
+    		  color: 'var(--text-secondary)',
+    		  fontWeight: 800, fontSize: '0.72rem',
+    		  letterSpacing: '0.12em', textTransform: 'uppercase',
+    		  borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+    		  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    		  transition: 'all 0.2s ease'
+  		}}
+  		onMouseEnter={e => {
+    		  e.currentTarget.style.borderColor = 'var(--border-hover)'
+    		  e.currentTarget.style.color = 'var(--text-primary)'
+    		  e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+  		}}
+  		onMouseLeave={e => {
+    		  e.currentTarget.style.borderColor = 'var(--border-default)'
+  		  e.currentTarget.style.color = 'var(--text-secondary)'
+ 	 	  e.currentTarget.style.background = 'var(--bg-elevated)'
+  		}}>
+  		<Share2 size={15} /> BAGIKAN PRODUK
+	      </button>
+            </div>
           </div>
         </div>
 
-        {/* Fragrance Pyramid */}
-        <div ref={infoRef} style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr',
-          gap: 24, marginBottom: 32,
-          opacity: infoInView ? 1 : 0,
-          transform: infoInView ? 'translateY(0)' : 'translateY(30px)',
-          transition: 'all 0.6s ease'
-        }}>
-          {/* Notes */}
+        {/* ===== NOTES + PROS/CONS — hanya render kalau ada data ===== */}
+        {hasInfoSection && (
           <div style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-lg)', padding: 32
+            display: 'grid',
+            gridTemplateColumns: hasNotes && hasProscons ? '1fr 1fr' : '1fr',
+            gap: 20, marginBottom: 24
           }}>
-            <div style={{
-              fontSize: '0.68rem', fontWeight: 700,
-              letterSpacing: '0.2em', textTransform: 'uppercase',
-              color: 'var(--accent-red)', marginBottom: 20
-            }}>Piramida Wangi</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {[
-                { label: 'Top Notes', notes: product.top_notes, icon: '🍃' },
-                { label: 'Middle Notes', notes: product.middle_notes, icon: '🌸' },
-                { label: 'Base Notes', notes: product.base_notes, icon: '🪵' }
-              ].map(({ label, notes, icon }) => notes && (
-                <div key={label} style={{
-                  padding: '14px 16px',
-                  background: 'var(--bg-elevated)',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)'
-                }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    marginBottom: 6
-                  }}>
-                    <span style={{ fontSize: '0.9rem' }}>{icon}</span>
-                    <span style={{
-                      fontSize: '0.68rem', fontWeight: 700,
-                      letterSpacing: '0.12em', textTransform: 'uppercase',
-                      color: 'var(--accent-gold)'
-                    }}>{label}</span>
-                  </div>
-                  <p style={{
-                    fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6
-                  }}>{notes}</p>
-                </div>
-              ))}
-            </div>
-
-            {product.main_accords && (
-              <div style={{ marginTop: 20 }}>
+            {/* Notes */}
+            {hasNotes && (
+              <div style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-lg)', padding: 28
+              }}>
                 <div style={{
-                  fontSize: '0.68rem', fontWeight: 700,
-                  letterSpacing: '0.12em', textTransform: 'uppercase',
-                  color: 'var(--text-muted)', marginBottom: 10
-                }}>Main Accords</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {product.main_accords.split(',').map((accord, i) => (
-                    <span key={i} style={{
-                      padding: '4px 12px',
-                      background: 'rgba(200,16,46,0.08)',
-                      border: '1px solid rgba(200,16,46,0.2)',
-                      borderRadius: 'var(--radius-full)',
-                      fontSize: '0.75rem', color: 'var(--accent-red)'
-                    }}>{accord.trim()}</span>
+                  fontSize: '0.62rem', fontWeight: 800,
+                  letterSpacing: '0.2em', textTransform: 'uppercase',
+                  color: 'var(--accent-red)', marginBottom: 20
+                }}>PIRAMIDA WANGI</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {[
+                    { label: 'TOP NOTES', notes: product.top_notes, icon: '🍃' },
+                    { label: 'MIDDLE NOTES', notes: product.middle_notes, icon: '🌸' },
+                    { label: 'BASE NOTES', notes: product.base_notes, icon: '🪵' }
+                  ].filter(n => n.notes).map(({ label, notes, icon }) => (
+                    <div key={label} style={{
+                      padding: '12px 14px',
+                      background: 'var(--bg-elevated)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-default)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                        <span style={{ fontSize: '0.85rem' }}>{icon}</span>
+                        <span style={{
+                          fontSize: '0.58rem', fontWeight: 800,
+                          letterSpacing: '0.15em', textTransform: 'uppercase',
+                          color: 'var(--accent-red)'
+                        }}>{label}</span>
+                      </div>
+                      <p style={{
+                        fontSize: '0.82rem', color: 'var(--text-secondary)',
+                        lineHeight: 1.6, fontWeight: 400
+                      }}>{notes}</p>
+                    </div>
                   ))}
                 </div>
+
+                {product.main_accords && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{
+                      fontSize: '0.58rem', fontWeight: 800,
+                      letterSpacing: '0.15em', textTransform: 'uppercase',
+                      color: 'var(--text-muted)', marginBottom: 10
+                    }}>MAIN ACCORDS</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {product.main_accords.split(',').map((accord, i) => (
+                        <span key={i} style={{
+                          padding: '4px 10px',
+                          background: 'rgba(240,46,41,0.08)',
+                          border: '1px solid rgba(240,46,41,0.15)',
+                          borderRadius: 'var(--radius-xs)',
+                          fontSize: '0.72rem', fontWeight: 700,
+                          color: 'var(--accent-red)'
+                        }}>{accord.trim()}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Pros & Cons */}
+            {hasProscons && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {product.pros && (
+                  <div style={{
+                    flex: 1, padding: 22,
+                    background: 'rgba(34,197,94,0.04)',
+                    border: '1px solid rgba(34,197,94,0.12)',
+                    borderRadius: 'var(--radius-lg)'
+                  }}>
+                    <div style={{
+                      fontSize: '0.62rem', fontWeight: 800,
+                      letterSpacing: '0.15em', textTransform: 'uppercase',
+                      color: '#22c55e', marginBottom: 10
+                    }}>KELEBIHAN</div>
+                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '0.85rem', fontWeight: 400 }}>
+                      {product.pros}
+                    </p>
+                  </div>
+                )}
+                {product.cons && (
+                  <div style={{
+                    flex: 1, padding: 22,
+                    background: 'rgba(239,68,68,0.04)',
+                    border: '1px solid rgba(239,68,68,0.12)',
+                    borderRadius: 'var(--radius-lg)'
+                  }}>
+                    <div style={{
+                      fontSize: '0.62rem', fontWeight: 800,
+                      letterSpacing: '0.15em', textTransform: 'uppercase',
+                      color: '#ef4444', marginBottom: 10
+                    }}>KEKURANGAN</div>
+                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '0.85rem', fontWeight: 400 }}>
+                      {product.cons}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
+        )}
 
-          {/* Pros & Cons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {product.pros && (
-              <div style={{
-                flex: 1, padding: 24,
-                background: 'rgba(34,197,94,0.04)',
-                border: '1px solid rgba(34,197,94,0.15)',
-                borderRadius: 'var(--radius-lg)'
-              }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12
-                }}>
-                  <span style={{ fontSize: '1rem' }}>✓</span>
-                  <span style={{
-                    fontSize: '0.68rem', fontWeight: 700,
-                    letterSpacing: '0.15em', textTransform: 'uppercase',
-                    color: '#22c55e'
-                  }}>Kelebihan</span>
-                </div>
-                <p style={{
-                  color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '0.88rem'
-                }}>{product.pros}</p>
-              </div>
-            )}
-            {product.cons && (
-              <div style={{
-                flex: 1, padding: 24,
-                background: 'rgba(239,68,68,0.04)',
-                border: '1px solid rgba(239,68,68,0.15)',
-                borderRadius: 'var(--radius-lg)'
-              }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12
-                }}>
-                  <span style={{ fontSize: '1rem' }}>✗</span>
-                  <span style={{
-                    fontSize: '0.68rem', fontWeight: 700,
-                    letterSpacing: '0.15em', textTransform: 'uppercase',
-                    color: '#ef4444'
-                  }}>Kekurangan</span>
-                </div>
-                <p style={{
-                  color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '0.88rem'
-                }}>{product.cons}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Reviews */}
-        <div ref={reviewRef} style={{
+        {/* ===== REVIEWS ===== */}
+        <div style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-lg)', padding: 40, marginBottom: 48,
-          opacity: reviewInView ? 1 : 0,
-          transform: reviewInView ? 'translateY(0)' : 'translateY(30px)',
-          transition: 'all 0.6s ease 0.2s'
+          borderRadius: 'var(--radius-lg)', padding: 36, marginBottom: 48
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+          {/* Header review */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', marginBottom: 28
+          }}>
             <div>
               <div style={{
-                fontSize: '0.68rem', fontWeight: 700,
+                fontSize: '0.62rem', fontWeight: 800,
                 letterSpacing: '0.2em', textTransform: 'uppercase',
                 color: 'var(--accent-red)', marginBottom: 8
-              }}>Ulasan Pelanggan</div>
+              }}>ULASAN PELANGGAN</div>
               <h2 style={{
-                fontFamily: 'var(--font-heading)',
-                fontSize: '1.5rem', fontWeight: 400, fontStyle: 'italic'
-              }}>
-                {reviews.length} Ulasan
-              </h2>
+                fontSize: '1.4rem', fontWeight: 900,
+                letterSpacing: '-0.02em', textTransform: 'uppercase'
+              }}>{reviews.length} ULASAN</h2>
             </div>
-            {avgRating > 0 && (
+            {avgRating && (
               <div style={{ textAlign: 'right' }}>
                 <div style={{
-                  fontFamily: 'var(--font-heading)',
-                  fontSize: '3rem', fontWeight: 400,
-                  color: 'var(--accent-gold)'
+                  fontSize: '2.8rem', fontWeight: 900,
+                  color: 'var(--accent-red)', letterSpacing: '-0.04em', lineHeight: 1
                 }}>{avgRating}</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>dari 5.0</div>
+                <div style={{
+                  fontSize: '0.62rem', color: 'var(--text-muted)',
+                  fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase'
+                }}>DARI 5.0</div>
               </div>
             )}
           </div>
 
-          {/* Review Form */}
-          {isAuthenticated && (
+          {/* Form tulis ulasan — hanya kalau login */}
+          {isAuthenticated ? (
             <form onSubmit={handleSubmitReview} style={{
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border-default)',
-              borderRadius: 'var(--radius-md)',
-              padding: 24, marginBottom: 32
+              borderRadius: 'var(--radius-md)', padding: 22, marginBottom: 28
             }}>
               <div style={{
-                fontSize: '0.78rem', fontWeight: 600,
-                letterSpacing: '0.08em', color: 'var(--text-muted)',
-                marginBottom: 14, textTransform: 'uppercase'
-              }}>Tulis Ulasan</div>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                {[1,2,3,4,5].map(star => (
+                fontSize: '0.62rem', fontWeight: 800,
+                letterSpacing: '0.15em', textTransform: 'uppercase',
+                color: 'var(--text-muted)', marginBottom: 14
+              }}>TULIS ULASAN</div>
+
+              {/* Star rating */}
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                {[1, 2, 3, 4, 5].map(star => (
                   <button key={star} type="button"
                     onClick={() => setReviewForm(prev => ({ ...prev, rating: star }))}
                     style={{
-                      fontSize: '1.4rem', cursor: 'pointer',
+                      fontSize: '1.3rem', cursor: 'pointer',
                       opacity: star <= reviewForm.rating ? 1 : 0.25,
-                      transition: '150ms ease',
-                      transform: star <= reviewForm.rating ? 'scale(1.1)' : 'scale(1)'
+                      transform: star <= reviewForm.rating ? 'scale(1.15)' : 'scale(1)',
+                      transition: '150ms ease', background: 'none', border: 'none'
                     }}>⭐</button>
                 ))}
+                <span style={{
+                  marginLeft: 8, fontSize: '0.75rem',
+                  color: 'var(--text-muted)', fontWeight: 600,
+                  alignSelf: 'center'
+                }}>
+                  {reviewForm.rating}/5
+                </span>
               </div>
+
               <textarea
                 value={reviewForm.comment}
                 onChange={e => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
@@ -590,98 +667,130 @@ export default function ProductDetailPage() {
                   width: '100%', padding: '12px 14px',
                   background: 'var(--bg-input)',
                   border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-primary)', fontSize: '0.88rem',
-                  resize: 'vertical', outline: 'none', marginBottom: 14,
-                  fontFamily: 'var(--font-sans)', lineHeight: 1.6
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)', fontSize: '0.85rem',
+                  resize: 'vertical', outline: 'none', marginBottom: 12,
+                  fontFamily: 'var(--font-sans)', lineHeight: 1.6, fontWeight: 400
                 }}
+                onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
               />
               <button type="submit" disabled={submittingReview}
                 style={{
                   padding: '10px 24px',
                   background: submittingReview ? 'var(--border-hover)' : 'var(--accent-red)',
-                  color: 'white', fontWeight: 600,
-                  borderRadius: 'var(--radius-full)',
-                  border: 'none', cursor: submittingReview ? 'not-allowed' : 'pointer',
-                  fontSize: '0.85rem', letterSpacing: '0.04em'
+                  color: 'white', fontWeight: 800,
+                  borderRadius: 'var(--radius-sm)', border: 'none',
+                  cursor: submittingReview ? 'not-allowed' : 'pointer',
+                  fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase',
+                  boxShadow: submittingReview ? 'none' : '0 4px 12px rgba(240,46,41,0.3)'
                 }}>
-                {submittingReview ? 'Mengirim...' : 'Kirim Ulasan'}
+                {submittingReview ? 'MENGIRIM...' : 'KIRIM ULASAN'}
               </button>
             </form>
+          ) : (
+            <div style={{
+              padding: '18px 20px', marginBottom: 28,
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                Login untuk menulis ulasan
+              </span>
+              <button onClick={() => navigate('/login')}
+                style={{
+                  padding: '8px 18px',
+                  background: 'var(--accent-red)', color: 'white',
+                  borderRadius: 'var(--radius-sm)', fontWeight: 800,
+                  fontSize: '0.68rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+                  border: 'none', cursor: 'pointer'
+                }}>
+                MASUK
+              </button>
+            </div>
           )}
 
-          {/* Review List */}
+          {/* List reviews */}
           {reviews.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>💬</div>
-              <p style={{ fontSize: '0.9rem' }}>Belum ada ulasan. Jadilah yang pertama!</p>
+            <div style={{ textAlign: 'center', padding: '28px 0' }}>
+              <div style={{ fontSize: '2rem', marginBottom: 12 }}>💬</div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                Belum ada ulasan. Jadilah yang pertama!
+              </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {reviews.map(review => (
                 <div key={review.review_id} style={{
-                  padding: '20px 24px',
+                  padding: '18px 20px',
                   background: 'var(--bg-elevated)',
                   borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-default)',
-                  transition: '200ms ease'
+                  border: '1px solid var(--border-default)'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'flex-start', marginBottom: 10
+                  }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{
                         width: 32, height: 32, borderRadius: '50%',
-                        background: 'linear-gradient(135deg, var(--accent-red), #7c3aed)',
+                        background: 'linear-gradient(135deg, var(--accent-red), #A2120E)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '0.72rem', fontWeight: 700, color: 'white'
+                        fontSize: '0.72rem', fontWeight: 800, color: 'white', flexShrink: 0
                       }}>
-                        {review.user?.full_name?.charAt(0) || 'U'}
+                        {review.user?.full_name?.charAt(0)?.toUpperCase() || 'U'}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
                           {review.user?.full_name || 'Anonymous'}
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                           {new Date(review.createdAt).toLocaleDateString('id-ID', {
                             day: 'numeric', month: 'long', year: 'numeric'
                           })}
                         </div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                      {[1,2,3,4,5].map(s => (
+                    <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                      {[1, 2, 3, 4, 5].map(s => (
                         <span key={s} style={{
-                          fontSize: '0.85rem',
-                          opacity: s <= review.rating ? 1 : 0.2
+                          fontSize: '0.82rem',
+                          opacity: s <= review.rating ? 1 : 0.15
                         }}>⭐</span>
                       ))}
                     </div>
                   </div>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.7 }}>
-                    {review.comment}
-                  </p>
+                  {review.comment && (
+                    <p style={{
+                      color: 'var(--text-secondary)', fontSize: '0.85rem',
+                      lineHeight: 1.7, fontWeight: 400
+                    }}>{review.comment}</p>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Similar Products */}
+        {/* ===== PRODUK SERUPA ===== */}
         {similar.length > 0 && (
           <div>
             <div style={{
-              fontSize: '0.68rem', fontWeight: 700,
+              fontSize: '0.62rem', fontWeight: 800,
               letterSpacing: '0.2em', textTransform: 'uppercase',
-              color: 'var(--accent-red)', marginBottom: 12
-            }}>Mungkin Kamu Suka</div>
+              color: 'var(--accent-red)', marginBottom: 10
+            }}>MUNGKIN KAMU SUKA</div>
             <h2 style={{
-              fontFamily: 'var(--font-heading)',
-              fontSize: '1.8rem', fontWeight: 400, fontStyle: 'italic',
-              marginBottom: 32
-            }}>Produk Serupa</h2>
+              fontSize: 'clamp(1.4rem, 3vw, 1.8rem)',
+              fontWeight: 900, letterSpacing: '-0.03em',
+              textTransform: 'uppercase', marginBottom: 28
+            }}>PRODUK SERUPA</h2>
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-              gap: 20
+              gap: 16
             }}>
               {similar.map((p, i) => (
                 <div key={p.product_id}
@@ -692,11 +801,11 @@ export default function ProductDetailPage() {
                     borderRadius: 'var(--radius-lg)',
                     overflow: 'hidden', cursor: 'pointer',
                     transition: 'all 0.3s ease',
-                    animation: `fadeInUp 0.5s ease ${i * 0.1}s both`
+                    animation: `fadeInUp 0.5s ease ${i * 0.08}s both`
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = 'rgba(200,16,46,0.3)'
-                    e.currentTarget.style.transform = 'translateY(-6px)'
+                    e.currentTarget.style.borderColor = 'rgba(240,46,41,0.3)'
+                    e.currentTarget.style.transform = 'translateY(-5px)'
                     e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.4)'
                   }}
                   onMouseLeave={e => {
@@ -707,21 +816,31 @@ export default function ProductDetailPage() {
                   <div style={{
                     height: 140, background: 'var(--bg-elevated)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '2.5rem'
-                  }}>🧴</div>
-                  <div style={{ padding: '14px 16px' }}>
+                    overflow: 'hidden'
+                  }}>
+                    {p.image_filename && p.image_filename !== 'default.png' ? (
+                      <img
+                        src={`${API_URL}/uploads/products/${p.image_filename}`}
+                        alt={p.product_name}
+                        style={{ maxHeight: '90%', maxWidth: '90%', objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '2.5rem' }}>🧴</span>
+                    )}
+                  </div>
+                  <div style={{ padding: '12px 14px' }}>
                     <div style={{
-                      fontSize: '0.65rem', fontWeight: 700,
-                      letterSpacing: '0.1em', textTransform: 'uppercase',
-                      color: 'var(--accent-gold)', marginBottom: 4
+                      fontSize: '0.58rem', fontWeight: 800,
+                      letterSpacing: '0.12em', textTransform: 'uppercase',
+                      color: 'var(--accent-red)', marginBottom: 4
                     }}>{p.brand}</div>
                     <div style={{
-                      fontFamily: 'var(--font-heading)',
-                      fontSize: '0.92rem', fontWeight: 400,
-                      marginBottom: 8, lineHeight: 1.3
+                      fontWeight: 700, fontSize: '0.82rem',
+                      marginBottom: 8, letterSpacing: '-0.01em'
                     }}>{p.product_name}</div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--accent-red)' }}>
-                      {formatRupiah(p.price_1ml)}<span style={{ fontSize: '0.7rem', fontWeight: 400, color: 'var(--text-muted)' }}>/ml</span>
+                    <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--accent-red)' }}>
+                      {formatRupiah(p.price_1ml)}
+                      <span style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-muted)' }}>/ml</span>
                     </div>
                   </div>
                 </div>
@@ -729,6 +848,7 @@ export default function ProductDetailPage() {
             </div>
           </div>
         )}
+
       </div>
     </div>
   )

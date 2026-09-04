@@ -16,10 +16,21 @@ const STATUS_CONFIG = {
   cancelled: { label: 'DIBATALKAN', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.2)' }
 }
 
+const FILTER_TABS = [
+  { key: '', label: 'SEMUA' },
+  { key: 'pending', label: 'MENUNGGU BAYAR' },
+  { key: 'paid', label: 'DIBAYAR' },
+  { key: 'processing', label: 'DIPROSES' },
+  { key: 'shipped', label: 'DIKIRIM' },
+  { key: 'delivered', label: 'SELESAI' },
+  { key: 'cancelled', label: 'DIBATALKAN' },
+]
+
 export default function OrdersPage() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [filterStatus, setFilterStatus] = useState('')
 
   useEffect(() => { fetchOrders() }, [])
 
@@ -31,17 +42,27 @@ export default function OrdersPage() {
     finally { setLoading(false) }
   }
 
+  const filtered = filterStatus
+    ? orders.filter(o => o.status === filterStatus)
+    : orders
+
   if (loading) return (
     <div style={{
       paddingTop: 'var(--navbar-height)', minHeight: '100vh',
       display: 'flex', alignItems: 'center', justifyContent: 'center'
     }}>
-      <div style={{
-        width: 40, height: 40, borderRadius: '50%',
-        border: '2px solid var(--border-default)',
-        borderTopColor: 'var(--accent-red)',
-        animation: 'rotate-slow 0.8s linear infinite'
-      }} />
+      <div style={{ textAlign: 'center' }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: '50%',
+          border: '2px solid var(--border-default)',
+          borderTopColor: 'var(--accent-red)',
+          animation: 'rotate-slow 0.8s linear infinite',
+          margin: '0 auto 14px'
+        }} />
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.1em' }}>
+          MEMUAT...
+        </p>
+      </div>
     </div>
   )
 
@@ -49,51 +70,112 @@ export default function OrdersPage() {
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '48px 32px' }}>
 
-        <div style={{ marginBottom: 40 }}>
+        {/* Header */}
+        <div style={{ marginBottom: 32 }}>
           <div style={{
             fontSize: '0.65rem', fontWeight: 800,
             letterSpacing: '0.22em', textTransform: 'uppercase',
             color: 'var(--accent-red)', marginBottom: 10
           }}>Riwayat</div>
-          <h1 style={{
-            fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
-            fontWeight: 900, letterSpacing: '-0.03em', textTransform: 'uppercase'
-          }}>PESANAN SAYA</h1>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <h1 style={{
+              fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
+              fontWeight: 900, letterSpacing: '-0.03em', textTransform: 'uppercase'
+            }}>PESANAN SAYA</h1>
+            <div style={{
+              fontSize: '0.72rem', color: 'var(--text-muted)',
+              fontWeight: 700, letterSpacing: '0.04em'
+            }}>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 900 }}>{filtered.length}</span>
+              {filterStatus ? ' pesanan' : ` dari ${orders.length} pesanan`}
+            </div>
+          </div>
         </div>
 
-        {orders.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '100px 0', animation: 'fadeInUp 0.5s ease' }}>
+        {/* Filter Tabs */}
+        {orders.length > 0 && (
+          <div style={{
+            display: 'flex', gap: 6, marginBottom: 28,
+            overflowX: 'auto', paddingBottom: 4,
+            scrollbarWidth: 'none'
+          }}>
+            {FILTER_TABS.map(({ key, label }) => {
+              const count = key ? orders.filter(o => o.status === key).length : orders.length
+              if (key && count === 0) return null
+              const isActive = filterStatus === key
+              const config = key ? STATUS_CONFIG[key] : null
+              return (
+                <button key={key}
+                  onClick={() => setFilterStatus(key)}
+                  style={{
+                    padding: '7px 14px', flexShrink: 0,
+                    background: isActive
+                      ? (config ? config.bg : 'rgba(240,46,41,0.1)')
+                      : 'var(--bg-card)',
+                    border: `1px solid ${isActive
+                      ? (config ? config.border : 'rgba(240,46,41,0.3)')
+                      : 'var(--border-default)'}`,
+                    borderRadius: 'var(--radius-xs)',
+                    color: isActive
+                      ? (config ? config.color : 'var(--accent-red)')
+                      : 'var(--text-muted)',
+                    fontWeight: 800, cursor: 'pointer',
+                    fontSize: '0.6rem', letterSpacing: '0.1em',
+                    transition: 'all 0.2s ease',
+                    display: 'flex', alignItems: 'center', gap: 6
+                  }}>
+                  {label}
+                  <span style={{
+                    padding: '1px 6px',
+                    background: isActive ? 'rgba(0,0,0,0.15)' : 'var(--bg-elevated)',
+                    borderRadius: 10, fontSize: '0.58rem', fontWeight: 900
+                  }}>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Orders */}
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '80px 0', animation: 'fadeInUp 0.5s ease' }}>
             <div style={{
-              width: 80, height: 80, borderRadius: '50%',
+              width: 72, height: 72, borderRadius: '50%',
               background: 'var(--bg-card)',
               border: '1px solid var(--border-default)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 24px'
+              margin: '0 auto 20px'
             }}>
-              <Package size={32} style={{ color: 'var(--text-muted)' }} />
+              <Package size={28} style={{ color: 'var(--text-muted)' }} />
             </div>
             <h3 style={{
-              fontSize: '1.2rem', fontWeight: 900,
-              textTransform: 'uppercase', letterSpacing: '-0.02em', marginBottom: 10
-            }}>BELUM ADA PESANAN</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 32, fontWeight: 400 }}>
-              Yuk mulai belanja parfum favorit kamu
+              fontSize: '1.1rem', fontWeight: 900,
+              textTransform: 'uppercase', letterSpacing: '-0.02em', marginBottom: 8
+            }}>
+              {filterStatus ? 'TIDAK ADA PESANAN' : 'BELUM ADA PESANAN'}
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 28, fontWeight: 400 }}>
+              {filterStatus
+                ? `Tidak ada pesanan dengan status "${STATUS_CONFIG[filterStatus]?.label}"`
+                : 'Yuk mulai belanja parfum favorit kamu'}
             </p>
-            <button onClick={() => navigate('/catalog')}
-              style={{
-                padding: '14px 32px',
-                background: 'var(--accent-red)', color: 'white',
-                borderRadius: 'var(--radius-sm)', fontWeight: 800,
-                fontSize: '0.78rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-                border: 'none', cursor: 'pointer',
-                boxShadow: '0 4px 20px rgba(240,46,41,0.35)'
-              }}>
-              MULAI BELANJA
-            </button>
+            {!filterStatus && (
+              <button onClick={() => navigate('/catalog')}
+                style={{
+                  padding: '13px 28px',
+                  background: 'var(--accent-red)', color: 'white',
+                  borderRadius: 'var(--radius-sm)', fontWeight: 800,
+                  fontSize: '0.75rem', letterSpacing: '0.12em', textTransform: 'uppercase',
+                  border: 'none', cursor: 'pointer',
+                  boxShadow: '0 4px 16px rgba(240,46,41,0.3)'
+                }}>
+                MULAI BELANJA
+              </button>
+            )}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {orders.map((order, i) => {
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {filtered.map((order, i) => {
               const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending
               return (
                 <div key={order.order_id}
@@ -102,12 +184,12 @@ export default function OrdersPage() {
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border-default)',
                     borderRadius: 'var(--radius-lg)',
-                    padding: '20px 24px', cursor: 'pointer',
+                    padding: '18px 22px', cursor: 'pointer',
                     transition: 'all 0.25s ease',
-                    animation: `fadeInUp 0.4s ease ${i * 0.06}s both`
+                    animation: `fadeInUp 0.4s ease ${i * 0.05}s both`
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = 'rgba(240,46,41,0.3)'
+                    e.currentTarget.style.borderColor = 'rgba(240,46,41,0.25)'
                     e.currentTarget.style.transform = 'translateX(4px)'
                   }}
                   onMouseLeave={e => {
@@ -115,14 +197,15 @@ export default function OrdersPage() {
                     e.currentTarget.style.transform = 'translateX(0)'
                   }}
                 >
+                  {/* Top row */}
                   <div style={{
                     display: 'flex', justifyContent: 'space-between',
-                    alignItems: 'flex-start', marginBottom: 16
+                    alignItems: 'flex-start', marginBottom: 14
                   }}>
                     <div>
                       <div style={{
                         fontWeight: 900, fontSize: '0.88rem',
-                        letterSpacing: '0.04em', marginBottom: 6
+                        letterSpacing: '0.04em', marginBottom: 5
                       }}>{order.order_code}</div>
                       <div style={{
                         display: 'flex', alignItems: 'center', gap: 6,
@@ -132,25 +215,35 @@ export default function OrdersPage() {
                         {new Date(order.createdAt).toLocaleDateString('id-ID', {
                           day: 'numeric', month: 'long', year: 'numeric'
                         })}
+                        {order.delivery_method === 'pickup' && (
+                          <span style={{
+                            marginLeft: 6, fontSize: '0.6rem', fontWeight: 800,
+                            color: '#22c55e', letterSpacing: '0.1em',
+                            padding: '1px 6px',
+                            background: 'rgba(34,197,94,0.1)',
+                            borderRadius: 'var(--radius-xs)'
+                          }}>PICKUP</span>
+                        )}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{
-                        padding: '5px 12px',
+                        padding: '4px 12px',
                         background: status.bg,
                         border: `1px solid ${status.border}`,
                         borderRadius: 'var(--radius-xs)',
-                        fontSize: '0.6rem', fontWeight: 800,
+                        fontSize: '0.58rem', fontWeight: 800,
                         letterSpacing: '0.12em', color: status.color
                       }}>{status.label}</span>
-                      <ChevronRight size={16} style={{ color: 'var(--text-muted)' }} />
+                      <ChevronRight size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                  {/* Products preview */}
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
                     {order.items?.slice(0, 3).map((item, j) => (
                       <div key={j} style={{
-                        padding: '5px 12px',
+                        padding: '4px 10px',
                         background: 'var(--bg-elevated)',
                         border: '1px solid var(--border-default)',
                         borderRadius: 'var(--radius-xs)',
@@ -162,7 +255,7 @@ export default function OrdersPage() {
                     ))}
                     {order.items?.length > 3 && (
                       <div style={{
-                        padding: '5px 12px',
+                        padding: '4px 10px',
                         background: 'var(--bg-elevated)',
                         border: '1px solid var(--border-default)',
                         borderRadius: 'var(--radius-xs)',
@@ -173,17 +266,23 @@ export default function OrdersPage() {
                     )}
                   </div>
 
+                  {/* Bottom row */}
                   <div style={{
                     display: 'flex', justifyContent: 'space-between',
-                    paddingTop: 16, borderTop: '1px solid var(--border-default)'
+                    alignItems: 'center',
+                    paddingTop: 14, borderTop: '1px solid var(--border-default)'
                   }}>
                     <span style={{
                       fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600
-                    }}>{order.items?.length} produk</span>
+                    }}>
+                      {order.items?.length} produk
+                    </span>
                     <span style={{
                       fontWeight: 900, color: 'var(--accent-red)',
                       fontSize: '0.95rem', letterSpacing: '-0.01em'
-                    }}>{formatRupiah(order.total_price)}</span>
+                    }}>
+                      {formatRupiah(order.total_price)}
+                    </span>
                   </div>
                 </div>
               )

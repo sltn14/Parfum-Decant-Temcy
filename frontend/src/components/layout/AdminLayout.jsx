@@ -1,14 +1,15 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
-import { LayoutDashboard, Package, ShoppingBag, Users, BarChart2, Star, LogOut } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingBag, Users, BarChart2, Star, Tag, LogOut } from 'lucide-react'
 
 const navLinks = [
-  { to: '/admin', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
-  { to: '/admin/products', icon: <Package size={18} />, label: 'Produk' },
-  { to: '/admin/orders', icon: <ShoppingBag size={18} />, label: 'Pesanan' },
-  { to: '/admin/users', icon: <Users size={18} />, label: 'Users' },
-  { to: '/admin/reviews', icon: <Star size={18} />, label: 'Reviews' },
-  { to: '/admin/sales-report', icon: <BarChart2 size={18} />, label: 'Laporan' },
+  { to: '/admin', icon: <LayoutDashboard size={16} />, label: 'DASHBOARD' },
+  { to: '/admin/products', icon: <Package size={16} />, label: 'PRODUK' },
+  { to: '/admin/orders', icon: <ShoppingBag size={16} />, label: 'PESANAN' },
+  { to: '/admin/users', icon: <Users size={16} />, label: 'USERS' },
+  { to: '/admin/reviews', icon: <Star size={16} />, label: 'REVIEWS' },
+  { to: '/admin/vouchers', icon: <Tag size={16} />, label: 'VOUCHER' },
+  { to: '/admin/sales-report', icon: <BarChart2 size={16} />, label: 'LAPORAN' },
 ]
 
 const AdminLayout = () => {

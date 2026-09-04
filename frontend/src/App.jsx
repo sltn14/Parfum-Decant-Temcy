@@ -22,6 +22,8 @@ import OrderDetailPage from './pages/customer/OrderDetailPage'
 import ProfilePage from './pages/customer/ProfilePage'
 import ChatbotPage from './pages/customer/ChatbotPage'
 import SuccessPage from './pages/customer/SuccessPage'
+import FavoritePage from './pages/customer/FavoritePage'
+import AddressPage from './pages/customer/AddressPage'
 
 // Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -30,6 +32,7 @@ import AdminOrders from './pages/admin/AdminOrders'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminSalesReport from './pages/admin/AdminSalesReport'
 import AdminReviews from './pages/admin/AdminReviews'
+import AdminVouchers from './pages/admin/AdminVouchers'
 
 // Layout
 import CustomerLayout from './components/layout/CustomerLayout'
@@ -70,6 +73,8 @@ function App() {
         <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="chatbot" element={<ChatbotPage />} />
         <Route path="success" element={<ProtectedRoute><SuccessPage /></ProtectedRoute>} />
+	<Route path="favorites" element={<ProtectedRoute><FavoritePage /></ProtectedRoute>} />
+	<Route path="addresses" element={<ProtectedRoute><AddressPage /></ProtectedRoute>} />
       </Route>
 
       {/* Admin */}
@@ -80,6 +85,7 @@ function App() {
         <Route path="users" element={<AdminUsers />} />
         <Route path="sales-report" element={<AdminSalesReport />} />
         <Route path="reviews" element={<AdminReviews />} />
+	<Route path="vouchers" element={<AdminVouchers />} />
       </Route>
 
       {/* 404 */}

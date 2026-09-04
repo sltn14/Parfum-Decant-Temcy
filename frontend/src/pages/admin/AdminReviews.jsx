@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Star, Trash2, Search } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
@@ -10,9 +10,7 @@ export default function AdminReviews() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
 
-  useEffect(() => {
-    fetchReviews()
-  }, [page])
+  useEffect(() => { fetchReviews() }, [page])
 
   const fetchReviews = async () => {
     setLoading(true)
@@ -21,41 +19,36 @@ export default function AdminReviews() {
       setReviews(res.data.reviews)
       setTotal(res.data.total)
       setTotalPages(Math.ceil(res.data.total / 10))
-    } catch {
-      toast.error('Gagal memuat reviews')
-    } finally {
-      setLoading(false)
-    }
+    } catch { toast.error('Gagal memuat reviews') }
+    finally { setLoading(false) }
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Yakin hapus review ini?')) return
+    if (!confirm('Hapus review ini?')) return
     try {
       await api.delete(`/reviews/admin/${id}`)
-      toast.success('Review berhasil dihapus!')
+      toast.success('Review dihapus!')
       fetchReviews()
-    } catch {
-      toast.error('Gagal menghapus review')
-    }
+    } catch { toast.error('Gagal menghapus') }
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-        <h1 style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: '1.8rem', fontWeight: 700, color: 'var(--text-primary)'
-        }}>
-          Manajemen Review
-        </h1>
+      <div style={{ marginBottom: 32 }}>
         <div style={{
-          padding: '6px 14px',
-          background: 'rgba(59,130,246,0.1)',
-          border: '1px solid rgba(59,130,246,0.3)',
-          borderRadius: 'var(--radius-full)',
-          fontSize: '0.85rem', color: '#3b82f6', fontWeight: 600
-        }}>
-          Total: {total} review
+          fontSize: '0.62rem', fontWeight: 800,
+          letterSpacing: '0.22em', textTransform: 'uppercase',
+          color: 'var(--accent-red)', marginBottom: 8
+        }}>Kelola</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <h1 style={{
+            fontWeight: 900, fontSize: '1.8rem',
+            letterSpacing: '-0.02em', textTransform: 'uppercase',
+            color: 'var(--text-primary)'
+          }}>MANAJEMEN REVIEW</h1>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 900 }}>{total}</span> review
+          </div>
         </div>
       </div>
 
@@ -69,85 +62,94 @@ export default function AdminReviews() {
             <tr style={{ background: 'var(--bg-elevated)' }}>
               {['Produk', 'User', 'Rating', 'Komentar', 'Tanggal', 'Aksi'].map(h => (
                 <th key={h} style={{
-                  padding: '12px 16px', textAlign: 'left',
-                  fontSize: '0.78rem', fontWeight: 600,
+                  padding: '11px 16px', textAlign: 'left',
+                  fontSize: '0.58rem', fontWeight: 800,
                   color: 'var(--text-muted)', textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
+                  letterSpacing: '0.12em'
                 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  Memuat...
-                </td>
-              </tr>
+              <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: 700 }}>MEMUAT...</td></tr>
             ) : reviews.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  Belum ada review
+              <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: 700 }}>BELUM ADA REVIEW</td></tr>
+            ) : reviews.map(review => (
+              <tr key={review.review_id} style={{
+                borderTop: '1px solid var(--border-default)',
+                transition: 'background 0.15s ease'
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <td style={{ padding: '12px 16px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 2 }}>
+                    {review.product?.product_name || '-'}
+                  </div>
+                  <div style={{
+                    fontSize: '0.62rem', fontWeight: 800,
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    color: 'var(--accent-red)'
+                  }}>{review.product?.brand}</div>
+                </td>
+                <td style={{ padding: '12px 16px', fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                  {review.user?.full_name || '-'}
+                </td>
+                <td style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    {[1,2,3,4,5].map(s => (
+                      <span key={s} style={{
+                        fontSize: '0.82rem',
+                        opacity: s <= review.rating ? 1 : 0.15
+                      }}>⭐</span>
+                    ))}
+                  </div>
+                  <div style={{
+                    fontSize: '0.62rem', fontWeight: 800,
+                    color: review.rating >= 4 ? '#22c55e' : review.rating >= 3 ? '#f59e0b' : '#ef4444',
+                    marginTop: 2
+                  }}>{review.rating}/5</div>
+                </td>
+                <td style={{ padding: '12px 16px', maxWidth: 280 }}>
+                  <div style={{
+                    fontSize: '0.78rem', color: 'var(--text-secondary)',
+                    overflow: 'hidden', textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap', fontWeight: 400
+                  }}>
+                    {review.comment || '-'}
+                  </div>
+                </td>
+                <td style={{ padding: '12px 16px', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                  {new Date(review.createdAt).toLocaleDateString('id-ID', {
+                    day: 'numeric', month: 'short', year: 'numeric'
+                  })}
+                </td>
+                <td style={{ padding: '12px 16px' }}>
+                  <button onClick={() => handleDelete(review.review_id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      padding: '6px 12px',
+                      background: 'rgba(239,68,68,0.08)',
+                      border: '1px solid rgba(239,68,68,0.2)',
+                      borderRadius: 'var(--radius-xs)',
+                      color: '#ef4444', cursor: 'pointer',
+                      fontSize: '0.62rem', fontWeight: 800,
+                      letterSpacing: '0.08em', transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#ef4444'
+                      e.currentTarget.style.color = 'white'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(239,68,68,0.08)'
+                      e.currentTarget.style.color = '#ef4444'
+                    }}>
+                    <Trash2 size={11} /> HAPUS
+                  </button>
                 </td>
               </tr>
-            ) : (
-              reviews.map((review, i) => (
-                <tr key={review.review_id} style={{
-                  borderTop: '1px solid var(--border-default)',
-                  background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'
-                }}>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-                      {review.product?.product_name || '-'}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--accent-red)' }}>
-                      {review.product?.brand}
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    {review.user?.full_name || '-'}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', gap: 2 }}>
-                      {[1,2,3,4,5].map(s => (
-                        <Star key={s} size={14}
-                          style={{
-                            color: s <= review.rating ? '#f59e0b' : 'var(--border-hover)',
-                            fill: s <= review.rating ? '#f59e0b' : 'transparent'
-                          }} />
-                      ))}
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: 300 }}>
-                    <div style={{
-                      overflow: 'hidden', textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {review.comment || '-'}
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                    {new Date(review.createdAt).toLocaleDateString('id-ID', {
-                      day: 'numeric', month: 'short', year: 'numeric'
-                    })}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <button onClick={() => handleDelete(review.review_id)}
-                      style={{
-                        padding: '6px 12px',
-                        background: 'rgba(239,68,68,0.1)',
-                        border: '1px solid rgba(239,68,68,0.3)',
-                        borderRadius: 'var(--radius-sm)',
-                        color: '#ef4444', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 4,
-                        fontSize: '0.8rem'
-                      }}>
-                      <Trash2 size={13} /> Hapus
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
       </div>
@@ -157,22 +159,20 @@ export default function AdminReviews() {
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
             style={{
               padding: '8px 16px', background: 'var(--bg-card)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)',
               color: page === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-              cursor: page === 1 ? 'not-allowed' : 'pointer'
-            }}>← Prev</button>
-          <span style={{ padding: '8px 16px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              cursor: page === 1 ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.75rem'
+            }}>← PREV</button>
+          <span style={{ padding: '8px 16px', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 700 }}>
             {page} / {totalPages}
           </span>
           <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
             style={{
               padding: '8px 16px', background: 'var(--bg-card)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)',
               color: page === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
-              cursor: page === totalPages ? 'not-allowed' : 'pointer'
-            }}>Next →</button>
+              cursor: page === totalPages ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.75rem'
+            }}>NEXT →</button>
         </div>
       )}
     </div>

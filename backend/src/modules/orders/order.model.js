@@ -18,6 +18,13 @@ const Order = sequelize.define('Order', {
   shipping_notes: { type: DataTypes.TEXT },
   payment_method: { type: DataTypes.STRING(50), defaultValue: 'QRIS' },
   payment_proof: { type: DataTypes.STRING(255) },
+  delivery_method: { type: DataTypes.ENUM('delivery', 'pickup'), defaultValue: 'delivery' },
+  courier: { type: DataTypes.STRING(50), allowNull: true },
+  courier_service: { type: DataTypes.STRING(50), allowNull: true },
+  shipping_cost: { type: DataTypes.INTEGER, defaultValue: 0 },
+  tracking_number: { type: DataTypes.STRING(100), allowNull: true },
+  voucher_code: { type: DataTypes.STRING(50), allowNull: true },
+  discount_amount: { type: DataTypes.INTEGER, defaultValue: 0 },
   paid_at: { type: DataTypes.DATE }
 }, { tableName: 'orders', timestamps: true });
 

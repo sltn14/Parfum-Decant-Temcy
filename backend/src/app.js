@@ -16,6 +16,10 @@ require('./modules/orders/order.model');
 require('./modules/orders/order_item.model');
 require('./modules/reviews/review.model');
 require('./modules/notification/notification.model');
+require('./modules/favorites/favorite.model');
+require('./modules/addresses/address.model');
+require('./modules/vouchers/voucher.model');
+require('./modules/tracking/tracking.model');
 
 const app = express();
 
@@ -55,6 +59,11 @@ app.use('/api/admin', require('./modules/admin/admin.routes'));
 app.use('/api/notifications', require('./modules/notification/notification.routes'));
 app.use('/api/chatbot', require('./modules/chatbot/chatbot.routes'));
 app.use('/api/recommendations', require('./modules/recommendation/recommendation.routes'));
+app.use('/api/favorites', require('./modules/favorites/favorite.routes'));
+app.use('/api/addresses', require('./modules/addresses/address.routes'));
+app.use('/api/shipping', require('./modules/shipping/shipping.routes'));
+app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
+app.use('/api/tracking', require('./modules/tracking/tracking.routes'));
 
 // Health check
 app.get('/', (req, res) => {
@@ -67,7 +76,7 @@ const startServer = async () => {
   try {
     await sequelize.authenticate();
     console.log('Database connected!');
-   // await sequelize.sync({ alter: true });
+    // await sequelize.sync({ alter: true });
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err) {
     console.error('Failed to connect DB:', err);

@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Flame, Star, ChevronRight, Zap } from 'lucide-react'
+import { ArrowRight, Flame, Star, ChevronRight, Zap, MessageCircle } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+
+const API_URL = 'http://localhost:5000'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
@@ -24,6 +26,7 @@ const useInView = (threshold = 0.1) => {
 const ProductCard = ({ product, index }) => {
   const [ref, inView] = useInView()
   const [hovered, setHovered] = useState(false)
+  const hasImage = product.image_filename && product.image_filename !== 'default.png'
 
   return (
     <Link to={`/product/${product.product_id}`} ref={ref}
@@ -43,19 +46,20 @@ const ProductCard = ({ product, index }) => {
     >
       {/* Image */}
       <div style={{
-        height: 200, background: 'linear-gradient(135deg, var(--bg-elevated), var(--bg-card))',
+        height: 200,
+        background: hasImage ? 'var(--bg-elevated)' : 'linear-gradient(135deg, var(--bg-elevated), var(--bg-card))',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         position: 'relative', overflow: 'hidden'
       }}>
         <div style={{
           position: 'absolute', inset: 0,
           background: hovered ? 'radial-gradient(circle at center, rgba(240,46,41,0.1) 0%, transparent 70%)' : 'transparent',
-          transition: '400ms ease'
+          transition: '400ms ease', zIndex: 1
         }} />
 
         {product.sold_count > 50 && (
           <div style={{
-            position: 'absolute', top: 12, left: 12,
+            position: 'absolute', top: 12, left: 12, zIndex: 2,
             background: 'var(--accent-red)',
             color: 'white', fontSize: '0.6rem', fontWeight: 800,
             letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -64,25 +68,38 @@ const ProductCard = ({ product, index }) => {
           }}>BEST SELLER</div>
         )}
 
-        <div style={{
-          fontSize: '4rem',
-          transform: hovered ? 'scale(1.2) translateY(-5px)' : 'scale(1)',
-          filter: hovered ? 'drop-shadow(0 8px 20px rgba(240,46,41,0.25))' : 'none',
-          transition: '400ms cubic-bezier(0.4,0,0.2,1)',
-          animation: 'float 4s ease-in-out infinite'
-        }}>🧴</div>
+        {hasImage ? (
+          <img
+            src={`${API_URL}/uploads/products/${product.image_filename}`}
+            alt={product.product_name}
+            style={{
+              maxHeight: '85%', maxWidth: '85%',
+              objectFit: 'contain', position: 'relative', zIndex: 1,
+              transform: hovered ? 'scale(1.08) translateY(-4px)' : 'scale(1)',
+              filter: hovered ? 'drop-shadow(0 8px 20px rgba(240,46,41,0.25))' : 'none',
+              transition: '400ms cubic-bezier(0.4,0,0.2,1)'
+            }}
+          />
+        ) : (
+          <div style={{
+            fontSize: '4rem', position: 'relative', zIndex: 1,
+            transform: hovered ? 'scale(1.2) translateY(-5px)' : 'scale(1)',
+            filter: hovered ? 'drop-shadow(0 8px 20px rgba(240,46,41,0.25))' : 'none',
+            transition: '400ms cubic-bezier(0.4,0,0.2,1)',
+            animation: 'float 4s ease-in-out infinite'
+          }}>🧴</div>
+        )}
 
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
-          padding: '10px 14px',
+          padding: '10px 14px', zIndex: 2,
           background: 'linear-gradient(to top, rgba(6,6,10,0.95), transparent)',
           transform: hovered ? 'translateY(0)' : 'translateY(100%)',
-          transition: '300ms ease',
-          textAlign: 'center'
+          transition: '300ms ease', textAlign: 'center'
         }}>
           <span style={{
             fontSize: '0.68rem', fontWeight: 800,
-            letterSpacing: '0.15em', color: 'var(--accent-red)',
+            letterSpacing: '0.15em', color: 'white',
             textTransform: 'uppercase'
           }}>LIHAT DETAIL →</span>
         </div>
@@ -106,7 +123,9 @@ const ProductCard = ({ product, index }) => {
           fontSize: '0.74rem', color: 'var(--text-muted)',
           marginBottom: 14, fontWeight: 500
         }}>
-          {product.concentration} · {product.gender}
+          {product.concentration}
+          {product.concentration && product.gender ? ' · ' : ''}
+          {product.gender}
         </div>
 
         <div style={{
@@ -114,9 +133,10 @@ const ProductCard = ({ product, index }) => {
           paddingTop: 12, borderTop: '1px solid var(--border-default)'
         }}>
           <div>
-            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2, letterSpacing: '0.05em' }}>
-              MULAI DARI
-            </div>
+            <div style={{
+              fontSize: '0.65rem', color: 'var(--text-muted)',
+              fontWeight: 600, marginBottom: 2, letterSpacing: '0.05em'
+            }}>MULAI DARI</div>
             <div style={{
               fontWeight: 800, fontSize: '0.9rem',
               color: hovered ? 'var(--accent-red)' : 'var(--text-primary)',
@@ -126,15 +146,16 @@ const ProductCard = ({ product, index }) => {
               <span style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-muted)' }}>/ml</span>
             </div>
           </div>
-          <span style={{
-            fontSize: '0.65rem', fontWeight: 600,
-            padding: '4px 10px',
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-xs)',
-            color: 'var(--text-muted)',
-            letterSpacing: '0.04em'
-          }}>{product.longevity_display}</span>
+          {product.longevity_display && (
+            <span style={{
+              fontSize: '0.65rem', fontWeight: 600,
+              padding: '4px 10px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-xs)',
+              color: 'var(--text-muted)', letterSpacing: '0.04em'
+            }}>{product.longevity_display}</span>
+          )}
         </div>
       </div>
     </Link>
@@ -786,9 +807,9 @@ export default function HomePage() {
         }}
         onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.12)'}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-        title="AI Advisor"
+        title="Konsultasi Parfum"
       >
-        ✨
+        <MessageCircle size={22} />
       </button>
 
     </div>

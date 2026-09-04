@@ -13,55 +13,61 @@ export default function GoogleCallbackPage() {
     const token = searchParams.get('token')
     const error = searchParams.get('error')
 
-    console.log('Token:', token) // debug
-    console.log('Error:', error) // debug
-
     if (error) {
       toast.error('Login dengan Google gagal')
       navigate('/login')
       return
     }
 
-    if (token) {
-      // Ambil data user dengan token
-      const fetchUser = async () => {
-        try {
-	  // Set token dulu ke localStorage sebelum request
-          localStorage.setItem('auth-storage', JSON.stringify({
-          state: { token, user: null, isAuthenticated: false }
-        }))
-
-          const res = await api.get('/auth/me', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-
-	  console.log('User data:', res.data.user) // debug
-          setAuth(res.data.user, token)
-          toast.success('Login berhasil!')
-          if (res.data.user.role === 'admin') navigate('/admin')
-          else navigate('/')
-        } catch {
-	  console.error('Fetch user error:', err) // debug
-          toast.error('Gagal mengambil data user')
-          navigate('/login')
-        }
-      }
-      fetchUser()
-    } else {
-      console.log('No token found in URL') // debug
+    if (!token) {
       navigate('/login')
+      return
     }
+
+    const fetchUser = async () => {
+      try {
+        const res = await api.get('/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        setAuth(res.data.user, token)
+        toast.success('Login berhasil!')
+        if (res.data.user.role === 'admin') {
+          window.location.href = '/admin'
+        } else {
+          window.location.href = '/'
+        }
+      } catch (err) {
+        toast.error('Gagal mengambil data user')
+        navigate('/login')
+      }
+    }
+
+    fetchUser()
   }, [])
 
   return (
     <div style={{
       minHeight: '100vh', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
-      background: 'var(--bg-primary)'
+      background: 'var(--bg-primary)', position: 'relative'
     }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '2rem', marginBottom: 16 }}>⏳</div>
-        <p style={{ color: 'var(--text-muted)' }}>Memproses login Google...</p>
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'radial-gradient(ellipse at 50% 50%, rgba(240,46,41,0.06) 0%, transparent 60%)'
+      }} />
+      <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: '50%',
+          border: '2px solid var(--border-default)',
+          borderTopColor: 'var(--accent-red)',
+          animation: 'rotate-slow 0.8s linear infinite',
+          margin: '0 auto 20px'
+        }} />
+        <div style={{
+          fontSize: '0.72rem', fontWeight: 800,
+          letterSpacing: '0.15em', textTransform: 'uppercase',
+          color: 'var(--text-muted)'
+        }}>MEMPROSES LOGIN GOOGLE...</div>
       </div>
     </div>
   )

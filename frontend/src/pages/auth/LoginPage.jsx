@@ -23,8 +23,11 @@ export default function LoginPage() {
       const res = await api.post('/auth/login', form)
       setAuth(res.data.user, res.data.token)
       toast.success('Login berhasil!')
-      if (res.data.user.role === 'admin') navigate('/admin')
-      else navigate('/')
+      if (res.data.user.role === 'admin') {
+	window.location.href = '/admin'
+      } else {
+	window.location.href = '/'
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Login gagal')
     } finally {

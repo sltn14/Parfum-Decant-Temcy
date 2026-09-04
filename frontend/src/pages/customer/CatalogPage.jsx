@@ -5,6 +5,8 @@ import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import useSearchStore from '../../store/searchStore'
 
+const API_URL = 'http://localhost:5000'
+
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
 
@@ -22,53 +24,76 @@ const useInView = (threshold = 0.1) => {
 const ProductCard = ({ product, index }) => {
   const [ref, inView] = useInView()
   const [hovered, setHovered] = useState(false)
+  const hasImage = product.image_filename && product.image_filename !== 'default.png'
 
   return (
     <Link to={`/product/${product.product_id}`} ref={ref}
       style={{
         background: 'var(--bg-card)',
-        border: `1px solid ${hovered ? 'rgba(200,16,46,0.4)' : 'var(--border-default)'}`,
+        border: `1px solid ${hovered ? 'rgba(240,46,41,0.4)' : 'var(--border-default)'}`,
         borderRadius: 'var(--radius-lg)',
         overflow: 'hidden', display: 'block',
         opacity: inView ? 1 : 0,
         transform: inView ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.97)',
         transition: `opacity 0.5s ease ${index * 0.07}s, transform 0.5s ease ${index * 0.07}s, border-color 0.3s, box-shadow 0.3s`,
-        boxShadow: hovered ? '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(200,16,46,0.15)' : 'none'
+        boxShadow: hovered ? '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(240,46,41,0.15)' : 'none',
+        textDecoration: 'none'
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       {/* Image Area */}
       <div style={{
-        height: 200, background: 'linear-gradient(135deg, var(--bg-elevated), var(--bg-card))',
+        height: 200,
+        background: hasImage
+          ? 'var(--bg-elevated)'
+          : 'linear-gradient(135deg, var(--bg-elevated), var(--bg-card))',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         position: 'relative', overflow: 'hidden'
       }}>
+        {/* Hover overlay */}
         <div style={{
           position: 'absolute', inset: 0,
           background: hovered
-            ? 'radial-gradient(circle at center, rgba(200,16,46,0.12) 0%, transparent 70%)'
+            ? 'radial-gradient(circle at center, rgba(240,46,41,0.1) 0%, transparent 70%)'
             : 'transparent',
-          transition: '400ms ease'
+          transition: '400ms ease',
+          zIndex: 1
         }} />
 
+        {/* Best Seller Badge */}
         {product.sold_count > 50 && (
           <div style={{
-            position: 'absolute', top: 12, left: 12,
-            background: 'linear-gradient(135deg, #c8102e, #e11d48)',
-            color: 'white', fontSize: '0.6rem', fontWeight: 700,
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-            padding: '4px 10px', borderRadius: 'var(--radius-full)',
-            boxShadow: '0 4px 12px rgba(200,16,46,0.4)'
-          }}>🔥 Best Seller</div>
+            position: 'absolute', top: 12, left: 12, zIndex: 2,
+            background: 'linear-gradient(135deg, var(--accent-red), #e11d48)',
+            color: 'white', fontSize: '0.6rem', fontWeight: 800,
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+            padding: '4px 10px', borderRadius: 'var(--radius-xs)',
+            boxShadow: '0 4px 12px rgba(240,46,41,0.4)'
+          }}>BEST SELLER</div>
         )}
 
-        <div style={{
-          fontSize: '4rem',
-          transform: hovered ? 'scale(1.2) translateY(-5px)' : 'scale(1)',
-          filter: hovered ? 'drop-shadow(0 8px 20px rgba(200,16,46,0.3))' : 'none',
-          transition: '400ms cubic-bezier(0.4,0,0.2,1)'
-        }}>🧴</div>
+        {/* Foto atau emoji */}
+        {hasImage ? (
+          <img
+            src={`${API_URL}/uploads/products/${product.image_filename}`}
+            alt={product.product_name}
+            style={{
+              maxHeight: '85%', maxWidth: '85%',
+              objectFit: 'contain', position: 'relative', zIndex: 1,
+              transform: hovered ? 'scale(1.08) translateY(-4px)' : 'scale(1)',
+              filter: hovered ? 'drop-shadow(0 8px 20px rgba(240,46,41,0.25))' : 'none',
+              transition: '400ms cubic-bezier(0.4,0,0.2,1)'
+            }}
+          />
+        ) : (
+          <div style={{
+            fontSize: '4rem', position: 'relative', zIndex: 1,
+            transform: hovered ? 'scale(1.2) translateY(-5px)' : 'scale(1)',
+            filter: hovered ? 'drop-shadow(0 8px 20px rgba(240,46,41,0.3))' : 'none',
+            transition: '400ms cubic-bezier(0.4,0,0.2,1)'
+          }}>🧴</div>
+        )}
 
         {/* Hover CTA */}
         <div style={{
@@ -76,9 +101,10 @@ const ProductCard = ({ product, index }) => {
           padding: '12px 16px',
           background: 'linear-gradient(to top, rgba(6,6,10,0.9), transparent)',
           transform: hovered ? 'translateY(0)' : 'translateY(100%)',
-          transition: '300ms ease',
-          textAlign: 'center', fontSize: '0.78rem',
-          color: 'var(--accent-red)', fontWeight: 600, letterSpacing: '0.06em'
+          transition: '300ms ease', zIndex: 2,
+          textAlign: 'center', fontSize: '0.72rem',
+          color: 'white', fontWeight: 800,
+          letterSpacing: '0.1em', textTransform: 'uppercase'
         }}>
           LIHAT DETAIL →
         </div>
@@ -87,26 +113,25 @@ const ProductCard = ({ product, index }) => {
       {/* Body */}
       <div style={{ padding: '16px 18px 18px' }}>
         <div style={{
-          fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+          fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.12em',
           textTransform: 'uppercase',
-          color: 'var(--accent-gold)', marginBottom: 6
+          color: 'var(--accent-red)', marginBottom: 6
         }}>
           {product.brand}
         </div>
         <div style={{
-          fontFamily: 'var(--font-heading)',
-          fontSize: '1rem', fontWeight: 400,
+          fontSize: '0.9rem', fontWeight: 700,
           color: 'var(--text-primary)', marginBottom: 8,
-          lineHeight: 1.3
+          lineHeight: 1.3, letterSpacing: '-0.01em'
         }}>
           {product.product_name}
         </div>
         <div style={{
           fontSize: '0.74rem', color: 'var(--text-muted)',
-          marginBottom: 14, display: 'flex', gap: 8
+          marginBottom: 14, display: 'flex', gap: 8, fontWeight: 500
         }}>
           <span>{product.concentration}</span>
-          <span>·</span>
+          {product.concentration && product.gender && <span>·</span>}
           <span>{product.gender}</span>
         </div>
         <div style={{
@@ -115,25 +140,36 @@ const ProductCard = ({ product, index }) => {
           paddingTop: 12, borderTop: '1px solid var(--border-default)'
         }}>
           <div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 2 }}>
-              Mulai dari
+            <div style={{
+              fontSize: '0.62rem', fontWeight: 700,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: 'var(--text-muted)', marginBottom: 3
+            }}>
+              MULAI DARI
             </div>
             <div style={{
-              fontWeight: 700, fontSize: '0.95rem',
+              fontWeight: 800, fontSize: '0.95rem',
               color: hovered ? 'var(--accent-red)' : 'var(--text-primary)',
-              transition: '200ms ease'
+              transition: '200ms ease', letterSpacing: '-0.01em'
             }}>
               {formatRupiah(product.price_1ml)}
-              <span style={{ fontSize: '0.7rem', fontWeight: 400, color: 'var(--text-muted)' }}>/ml</span>
+              <span style={{
+                fontSize: '0.7rem', fontWeight: 500,
+                color: 'var(--text-muted)'
+              }}>/ml</span>
             </div>
           </div>
-          <span style={{
-            fontSize: '0.68rem', padding: '4px 10px',
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-full)',
-            color: 'var(--text-muted)'
-          }}>{product.longevity_display}</span>
+          {product.longevity_display && (
+            <span style={{
+              fontSize: '0.65rem', fontWeight: 700,
+              padding: '4px 10px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-xs)',
+              color: 'var(--text-muted)',
+              letterSpacing: '0.04em'
+            }}>{product.longevity_display}</span>
+          )}
         </div>
       </div>
     </Link>
@@ -192,7 +228,7 @@ export default function CatalogPage() {
       if (filters.concentration) params.set('concentration', filters.concentration)
       if (filters.sort) params.set('sort', filters.sort)
       params.set('page', page)
-      params.set('limit', 12)
+      params.set('limit', 15)
       const res = await api.get(`/products?${params}`)
       setProducts(res.data.products)
       setTotal(res.data.total)
@@ -360,7 +396,7 @@ export default function CatalogPage() {
         {/* Grid */}
         {loading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 24 }}>
-            {[...Array(12)].map((_, i) => <SkeletonCard key={i} />)}
+            {[...Array(15)].map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : products.length === 0 ? (
           <div style={{

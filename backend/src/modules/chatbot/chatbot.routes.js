@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { chat } = require('./chatbot.controller');
+const { chat, resetSession } = require('./chatbot.controller');
+const { authenticate } = require('../../middleware/auth.middleware');
 
-router.post('/', chat);
+router.post('/', authenticate, chat);
+router.post('/reset', authenticate, resetSession);
 
 module.exports = router;

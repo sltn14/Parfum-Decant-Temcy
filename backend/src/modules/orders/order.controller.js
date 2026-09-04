@@ -16,10 +16,18 @@ const generateOrderCode = () => {
 // Checkout (buat order dari cart)
 const checkout = async (req, res) => {
   try {
-    const { shipping_name, shipping_phone, shipping_address, shipping_city, shipping_notes } = req.body;
+    const {
+      shipping_name, shipping_phone, shipping_address, shipping_city, shipping_notes,
+      delivery_method = 'delivery',
+      courier, courier_service, shipping_cost = 0,
+      voucher_code, address_id
+    } = req.body;
 
-    if (!shipping_name || !shipping_phone || !shipping_address || !shipping_city) {
-      return res.status(400).json({ message: 'Data pengiriman wajib diisi' });
+    // Validasi hanya kalau delivery DAN tidak pakai address_id
+    if (delivery_method === 'delivery' && !address_id) {
+      if (!shipping_name || !shipping_phone || !shipping_address || !shipping_city) {
+        return res.status(400).json({ message: 'Data pengiriman wajib diisi' });
+      }
     }
 
     const cart = await Cart.findOne({
@@ -31,17 +39,85 @@ const checkout = async (req, res) => {
       return res.status(400).json({ message: 'Keranjang kosong' });
     }
 
-    const total_price = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const subtotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    // Hitung diskon voucher
+    let discount_amount = 0;
+    if (voucher_code) {
+      const Voucher = require('../vouchers/voucher.model');
+      const { Op } = require('sequelize');
+      const voucher = await Voucher.findOne({
+        where: {
+          code: voucher_code.toUpperCase(),
+          is_active: true,
+          [Op.or]: [{ expired_at: null }, { expired_at: { [Op.gt]: new Date() } }]
+        }
+      });
+      if (voucher && voucher.used_count < voucher.quota && subtotal >= voucher.min_purchase) {
+        if (voucher.type === 'percentage') {
+          discount_amount = Math.floor(subtotal * (voucher.value / 100));
+          if (voucher.max_discount) discount_amount = Math.min(discount_amount, voucher.max_discount);
+        } else {
+          discount_amount = voucher.value;
+        }
+        await voucher.increment('used_count');
+      }
+    }
+
+    const total_price = subtotal + parseInt(shipping_cost) - discount_amount;
+
+    // Ambil data shipping
+    let shippingData = {
+      shipping_name,
+      shipping_phone,
+      shipping_address,
+      shipping_city,
+      shipping_notes: shipping_notes || ''
+    };
+
+    // Override kalau pakai address_id
+    if (address_id) {
+      const Address = require('../addresses/address.model');
+      const addr = await Address.findOne({
+        where: { address_id, user_id: req.user.user_id }
+      });
+      if (addr) {
+        shippingData = {
+          shipping_name: addr.recipient_name,
+          shipping_phone: addr.phone,
+          shipping_address: addr.detail,
+          shipping_city: addr.city,
+          shipping_notes: shipping_notes || ''
+        };
+      } else {
+        return res.status(400).json({ message: 'Alamat tidak ditemukan' });
+      }
+    }
+
+    // Kalau pickup, override shipping data
+    if (delivery_method === 'pickup') {
+      const User = require('../auth/user.model');
+      const user = await User.findByPk(req.user.user_id);
+      shippingData = {
+        shipping_name: user.full_name,
+        shipping_phone: user.phone || '-',
+        shipping_address: 'Pickup di toko',
+        shipping_city: 'Semarang',
+        shipping_notes: ''
+      };
+    }
 
     const order = await Order.create({
       user_id: req.user.user_id,
       order_code: generateOrderCode(),
       total_price,
-      shipping_name,
-      shipping_phone,
-      shipping_address,
-      shipping_city,
-      shipping_notes
+      ...shippingData,
+      delivery_method,
+      courier: delivery_method === 'delivery' ? courier : null,
+      courier_service: delivery_method === 'delivery' ? courier_service : null,
+      shipping_cost: delivery_method === 'delivery' ? parseInt(shipping_cost) : 0,
+      voucher_code: voucher_code || null,
+      discount_amount
     });
 
     for (const item of cart.items) {
@@ -90,6 +166,37 @@ const getOrder = async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order tidak ditemukan' });
     return res.status(200).json({ order });
   } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Cancel Order
+const cancelOrder = async (req, res) => {
+  try {
+    const order = await Order.findOne({
+      where: { order_id: req.params.id, user_id: req.user.user_id }
+    });
+    if (!order) return res.status(404).json({ message: 'Order tidak ditemukan' });
+
+    // Hanya bisa cancel kalau masih pending
+    if (order.status !== 'pending') {
+      return res.status(400).json({ message: 'Pesanan tidak dapat dibatalkan. Hanya pesanan dengan status menunggu pembayaran yang dapat dibatalkan.' });
+    }
+
+    await order.update({ status: 'cancelled' });
+
+    // Notifikasi
+    const Notification = require('../notification/notification.model');
+    await Notification.create({
+      user_id: order.user_id,
+      title: 'Pesanan Dibatalkan',
+      message: `Pesanan ${order.order_code} telah dibatalkan.`,
+      type: 'order'
+    });
+
+    return res.status(200).json({ message: 'Pesanan berhasil dibatalkan' });
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
@@ -225,11 +332,6 @@ const updateOrderStatus = async (req, res) => {
 };
 
 module.exports = {
-  checkout,
-  getMyOrders,
-  getOrder,
-  uploadPaymentProof,
-  getAllOrders,
-  updateOrderStatus,
-  createPayment
+  checkout, getMyOrders, getOrder, uploadPaymentProof,
+  getAllOrders, updateOrderStatus, createPayment, cancelOrder
 };

@@ -1,10 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { checkout, getMyOrders, getOrder, uploadPaymentProof, getAllOrders, updateOrderStatus, createPayment } = require('./order.controller');
+const {
+  checkout, getMyOrders, getOrder, uploadPaymentProof,
+  getAllOrders, updateOrderStatus, createPayment, cancelOrder
+} = require('./order.controller');
 const { authenticate, authorizeAdmin } = require('../../middleware/auth.middleware');
+const { midtransWebhook } = require('./webhook.controller');
 const multer = require('multer');
 const path = require('path');
-const { midtransWebhook } = require('./webhook.controller');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/payments/'),
@@ -15,7 +18,10 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Webhook tidak butuh auth
 router.post('/webhook/midtrans', midtransWebhook);
+
+// Semua route di bawah butuh auth
 router.use(authenticate);
 
 // Customer
@@ -24,6 +30,7 @@ router.get('/my-orders', getMyOrders);
 router.get('/my-orders/:id', getOrder);
 router.post('/my-orders/:id/payment-proof', upload.single('payment_proof'), uploadPaymentProof);
 router.post('/my-orders/:id/create-payment', createPayment);
+router.put('/my-orders/:id/cancel', cancelOrder);
 
 // Admin
 router.get('/', authorizeAdmin, getAllOrders);

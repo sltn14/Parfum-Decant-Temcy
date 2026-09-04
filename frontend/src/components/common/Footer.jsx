@@ -34,7 +34,7 @@ export default function Footer() {
               textTransform: 'uppercase', whiteSpace: 'nowrap'
             }}>
               {item}
-              <span style={{ opacity: 0.5, fontSize: '0.5rem' }}>◆</span>
+              <span style={{ opacity: 0.4, fontSize: '0.5rem' }}>|</span>
             </span>
           ))}
         </div>
@@ -52,15 +52,21 @@ export default function Footer() {
           <div>
             {/* Logo */}
             <div style={{ marginBottom: 20 }}>
-              <img
-                src="/logo.png"
-                alt="Decant Temcy"
-                style={{
-                  height: 44,
-                  filter: 'brightness(0) invert(1)',
-                  marginBottom: 16
-                }}
-              />
+              <div style={{
+                width: 40, height: 40, overflow: 'hidden',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginBottom: 16
+              }}>
+                <img
+                  src="/logo.png"
+                  alt="Decant Temcy"
+                  style={{
+                    width: 120, height: 120,
+                    filter: 'brightness(0) invert(1)',
+                    transform: 'scale(2.2)', objectFit: 'contain'
+                  }}
+                />
+              </div>
               <p style={{
                 color: 'var(--text-muted)',
                 fontSize: '0.85rem', lineHeight: 1.9,
@@ -74,32 +80,67 @@ export default function Footer() {
             {/* Social */}
             <div style={{ display: 'flex', gap: 12 }}>
               {[
-                { icon: <FaInstagram size={16} />, label: 'Instagram' },
-                { icon: <FaWhatsapp size={16} />, label: 'WhatsApp' },
-                { icon: <Mail size={16} />, label: 'Email' }
-              ].map(({ icon, label }) => (
-                <button key={label}
-                  style={{
-                    width: 36, height: 36,
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-default)',
-                    color: 'var(--text-muted)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = 'var(--accent-red)'
-                    e.currentTarget.style.color = 'var(--accent-red)'
-                    e.currentTarget.style.background = 'var(--accent-red-light)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = 'var(--border-default)'
-                    e.currentTarget.style.color = 'var(--text-muted)'
-                    e.currentTarget.style.background = 'var(--bg-elevated)'
-                  }}>
-                  {icon}
-                </button>
+                {
+                  icon: <FaInstagram size={16} />,
+                  label: 'Instagram',
+                  href: 'https://www.instagram.com/decant.temcy'
+                },
+                {
+                  icon: <FaWhatsapp size={16} />,
+                  label: 'WhatsApp',
+                  href: 'https://wa.me/6285128061012'
+                },
+                {
+                  icon: <Mail size={16} />,
+                  label: 'Email',
+                  href: null
+                }
+              ].map(({ icon, label, href }) => (
+                href ? (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      width: 36, height: 36,
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-default)',
+                      color: 'var(--text-muted)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', transition: 'all 0.2s ease',
+                      textDecoration: 'none'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = 'var(--accent-red)'
+                      e.currentTarget.style.color = 'var(--accent-red)'
+                      e.currentTarget.style.background = 'rgba(240,46,41,0.06)'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = 'var(--border-default)'
+                      e.currentTarget.style.color = 'var(--text-muted)'
+                      e.currentTarget.style.background = 'var(--bg-elevated)'
+                    }}>
+                    {icon}
+                  </a>
+                ) : (
+                  <div
+                    key={label}
+                    title="Segera hadir"
+                    style={{
+                      width: 36, height: 36,
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-default)',
+                      color: 'var(--text-muted)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      opacity: 0.4,
+                      cursor: 'not-allowed'
+                    }}>
+                    {icon}
+                  </div>
+                )
               ))}
             </div>
           </div>
@@ -114,12 +155,13 @@ export default function Footer() {
             {[
               { to: '/', label: 'Beranda' },
               { to: '/catalog', label: 'Katalog' },
-              { to: '/chatbot', label: 'AI Advisor' }
+              { to: '/chatbot', label: 'Konsultasi' }
             ].map(({ to, label }) => (
               <Link key={to} to={to} style={{
                 display: 'block', color: 'var(--text-muted)',
                 fontSize: '0.85rem', marginBottom: 12,
-                fontWeight: 500, transition: 'color 0.2s ease'
+                fontWeight: 500, transition: 'color 0.2s ease',
+                textDecoration: 'none'
               }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
@@ -140,12 +182,15 @@ export default function Footer() {
               { to: '/login', label: 'Masuk' },
               { to: '/register', label: 'Daftar' },
               { to: '/orders', label: 'Pesanan Saya' },
-              { to: '/profile', label: 'Profil' }
+              { to: '/profile', label: 'Profil' },
+              { to: '/favorites', label: 'Favorit' },
+              { to: '/addresses', label: 'Alamat' }
             ].map(({ to, label }) => (
               <Link key={to} to={to} style={{
                 display: 'block', color: 'var(--text-muted)',
                 fontSize: '0.85rem', marginBottom: 12,
-                fontWeight: 500, transition: 'color 0.2s ease'
+                fontWeight: 500, transition: 'color 0.2s ease',
+                textDecoration: 'none'
               }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
@@ -164,13 +209,14 @@ export default function Footer() {
             }}>Layanan</div>
             {[
               { to: '/catalog', label: 'Cari Parfum' },
-              { to: '/chatbot', label: 'Konsultasi AI' },
+              { to: '/chatbot', label: 'Konsultasi Parfum' },
               { to: '/register', label: 'Bergabung' }
             ].map(({ to, label }) => (
               <Link key={to} to={to} style={{
                 display: 'block', color: 'var(--text-muted)',
                 fontSize: '0.85rem', marginBottom: 12,
-                fontWeight: 500, transition: 'color 0.2s ease'
+                fontWeight: 500, transition: 'color 0.2s ease',
+                textDecoration: 'none'
               }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
@@ -182,8 +228,8 @@ export default function Footer() {
             {/* Badge */}
             <div style={{
               marginTop: 20, padding: '10px 14px',
-              background: 'var(--accent-red-light)',
-              border: '1px solid rgba(240,46,41,0.2)',
+              background: 'rgba(240,46,41,0.06)',
+              border: '1px solid rgba(240,46,41,0.15)',
               borderRadius: 'var(--radius-md)'
             }}>
               <div style={{
@@ -191,7 +237,7 @@ export default function Footer() {
                 letterSpacing: '0.15em', color: 'var(--accent-red)',
                 textTransform: 'uppercase', marginBottom: 4
               }}>Original 100%</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 400 }}>
                 Semua produk terjamin keasliannya
               </div>
             </div>
