@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ChevronDown, Upload } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import ConfirmModal from '../../components/common/ConfirmModal'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
@@ -25,6 +26,8 @@ export default function AdminOrders() {
   const [total, setTotal] = useState(0)
   const [expandedOrder, setExpandedOrder] = useState(null)
   const [trackingForm, setTrackingForm] = useState({})
+  const [statusTarget, setStatusTarget] = useState(null) // { orderId, status }
+  const [updatingStatus, setUpdatingStatus] = useState(false)
 
   useEffect(() => { fetchOrders() }, [page, filterStatus])
 
@@ -33,7 +36,7 @@ export default function AdminOrders() {
     try {
       const params = new URLSearchParams({ page, limit: 10 })
       if (filterStatus) params.set('status', filterStatus)
-      const res = await api.get(`/orders?${params}`)
+      const res = await api.get(`/orders/admin/all?${params}`)
       setOrders(res.data.orders)
       setTotal(res.data.total)
     } catch {
@@ -43,13 +46,18 @@ export default function AdminOrders() {
     }
   }
 
-  const handleUpdateStatus = async (orderId, status) => {
+  const handleUpdateStatus = async () => {
+    if (!statusTarget) return
+    setUpdatingStatus(true)
     try {
-      await api.put(`/orders/${orderId}/status`, { status })
+      await api.put(`/orders/${statusTarget.orderId}/status`, { status: statusTarget.status })
       toast.success('Status berhasil diupdate!')
+      setStatusTarget(null)
       fetchOrders()
     } catch {
       toast.error('Gagal update status')
+    } finally {
+      setUpdatingStatus(false)
     }
   }
 
@@ -60,11 +68,19 @@ export default function AdminOrders() {
       return
     }
     try {
-      await api.post('/tracking', { order_id: orderId, ...form })
+      await api.post('/tracking', {
+        order_id: orderId,
+        courier: form.courier || '',
+        tracking_number: form.tracking_number || '',
+        status: form.description || 'Dalam pengiriman',
+        description: form.description || '',
+        location: ''
+      })
       toast.success('Tracking berhasil diupdate!')
+      setTrackingForm(prev => ({ ...prev, [orderId]: {} }))
       fetchOrders()
-    } catch {
-      toast.error('Gagal update tracking')
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal update tracking')
     }
   }
 
@@ -87,6 +103,28 @@ export default function AdminOrders() {
 
   return (
     <div>
+      <style>{`
+        @media (max-width: 768px) {
+          .order-filter-row {
+            gap: 6px !important;
+          }
+          .order-filter-row button {
+            font-size: 0.58rem !important;
+            padding: 6px 10px !important;
+          }
+          .order-header-row {
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+          }
+          .order-expanded-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .order-tracking-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
       <h1 style={{
         fontWeight: 900, fontSize: '1.8rem',
         letterSpacing: '-0.02em', textTransform: 'uppercase',
@@ -94,7 +132,7 @@ export default function AdminOrders() {
       }}>MANAJEMEN PESANAN</h1>
 
       {/* Filter Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+      <div className="order-filter-row" style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         <button onClick={() => { setFilterStatus(''); setPage(1) }}
           style={{
             padding: '7px 14px',
@@ -149,7 +187,7 @@ export default function AdminOrders() {
               borderRadius: 'var(--radius-lg)', overflow: 'hidden'
             }}>
               {/* Header */}
-              <div style={{
+              <div className="order-header-row" style={{
                 padding: '14px 20px',
                 display: 'flex', alignItems: 'center', gap: 16,
                 cursor: 'pointer',
@@ -204,7 +242,7 @@ export default function AdminOrders() {
                   borderTop: '1px solid var(--border-default)',
                   padding: '20px 20px 24px'
                 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                  <div className="order-expanded-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
 
                     {/* Left: Items + Shipping */}
                     <div>
@@ -291,7 +329,7 @@ export default function AdminOrders() {
                               color: '#3b82f6', fontWeight: 700,
                               fontSize: '0.68rem', letterSpacing: '0.08em', textTransform: 'uppercase',
                               textDecoration: 'none'
-                            }}> 
+                            }}>
                             <Upload size={12} /> LIHAT BUKTI BAYAR
                           </a>
                         </div>
@@ -312,7 +350,7 @@ export default function AdminOrders() {
                           const isCurrent = order.status === s
                           return (
                             <button key={s}
-                              onClick={() => !isCurrent && handleUpdateStatus(order.order_id, s)}
+                              onClick={() => !isCurrent && setStatusTarget({ orderId: order.order_id, status: s })}
                               style={{
                                 padding: '6px 12px',
                                 background: isCurrent ? config.bg : 'var(--bg-elevated)',
@@ -349,7 +387,7 @@ export default function AdminOrders() {
                         color: 'var(--text-muted)', marginBottom: 10
                       }}>UPDATE TRACKING</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div className="order-tracking-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                           <input
                             placeholder="Kurir (JNE, J&T...)"
                             value={trackingForm[order.order_id]?.courier || ''}
@@ -464,6 +502,16 @@ export default function AdminOrders() {
             }}>NEXT →</button>
         </div>
       )}
+      <ConfirmModal
+        show={!!statusTarget}
+        onClose={() => setStatusTarget(null)}
+        onConfirm={handleUpdateStatus}
+        loading={updatingStatus}
+        title="UPDATE STATUS PESANAN?"
+        message={`Status pesanan akan diubah menjadi "${statusTarget ? STATUS_CONFIG[statusTarget.status]?.label : ''}".\nNotifikasi akan dikirim ke pelanggan.`}
+        confirmLabel="YA, UPDATE"
+        confirmColor="var(--accent-red)"
+      />
     </div>
   )
 }

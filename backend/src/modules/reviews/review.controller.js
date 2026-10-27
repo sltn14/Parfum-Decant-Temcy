@@ -1,6 +1,8 @@
 const Review = require('./review.model');
 const Product = require('../products/product.model');
 const User = require('../auth/user.model');
+const Order = require('../orders/order.model');
+const OrderItem = require('../orders/order_item.model');
 const { Op } = require('sequelize');
 
 // Get reviews by product
@@ -32,7 +34,7 @@ const getProductReviews = async (req, res) => {
   }
 };
 
-// Add review
+// Add review — UC-13: hanya untuk pembeli
 const addReview = async (req, res) => {
   try {
     const { product_id, rating, comment } = req.body;
@@ -41,11 +43,36 @@ const addReview = async (req, res) => {
       return res.status(400).json({ message: 'product_id dan rating wajib diisi' });
     }
 
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating harus antara 1 sampai 5' });
+    }
+
+    // UC-13: Validasi — user harus pernah beli produk ini
+    const hasBought = await Order.findOne({
+      where: {
+        user_id: req.user.user_id,
+        status: 'delivered' // hanya pesanan yang sudah selesai
+      },
+      include: [{
+        model: OrderItem,
+        as: 'items',
+        where: { product_id: parseInt(product_id) },
+        required: true
+      }]
+    });
+
+    if (!hasBought) {
+      return res.status(403).json({
+        message: 'Kamu hanya dapat memberikan ulasan pada produk yang sudah dibeli dan diterima'
+      });
+    }
+
+    // Cek sudah pernah review
     const existing = await Review.findOne({
       where: { user_id: req.user.user_id, product_id }
     });
     if (existing) {
-      return res.status(400).json({ message: 'Kamu sudah memberikan review untuk produk ini' });
+      return res.status(400).json({ message: 'Kamu sudah memberikan ulasan untuk produk ini' });
     }
 
     const review = await Review.create({
@@ -55,7 +82,12 @@ const addReview = async (req, res) => {
       comment
     });
 
-    return res.status(201).json({ message: 'Review berhasil ditambahkan', review });
+    // Ambil review lengkap dengan user info
+    const fullReview = await Review.findByPk(review.review_id, {
+      include: [{ model: User, as: 'user', attributes: ['full_name', 'avatar'] }]
+    });
+
+    return res.status(201).json({ message: 'Ulasan berhasil ditambahkan', review: fullReview });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: 'Server error' });
@@ -105,4 +137,43 @@ const adminDeleteReview = async (req, res) => {
   }
 };
 
-module.exports = { getProductReviews, addReview, updateReview, deleteReview, adminDeleteReview };
+// Cek apakah user bisa review produk ini
+const checkCanReview = async (req, res) => {
+  try {
+    const { product_id } = req.params;
+
+    const hasBought = await Order.findOne({
+      where: {
+        user_id: req.user.user_id,
+        status: 'delivered'
+      },
+      include: [{
+        model: OrderItem,
+        as: 'items',
+        where: { product_id: parseInt(product_id) },
+        required: true
+      }]
+    });
+
+    const hasReviewed = await Review.findOne({
+      where: {
+        user_id: req.user.user_id,
+        product_id: parseInt(product_id),
+        is_active: true
+      }
+    });
+
+    return res.status(200).json({
+      can_review: !!hasBought && !hasReviewed,
+      has_bought: !!hasBought,
+      has_reviewed: !!hasReviewed
+    });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+module.exports = {
+  getProductReviews, addReview, updateReview,
+  deleteReview, adminDeleteReview, checkCanReview
+};

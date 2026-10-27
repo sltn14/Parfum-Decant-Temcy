@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, X, Save } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import ConfirmModal from '../../components/common/ConfirmModal'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
@@ -17,6 +18,8 @@ export default function AdminVouchers() {
     min_purchase: 0, max_discount: '',
     quota: 1, expired_at: '', is_active: true
   })
+  const [deleteTarget, setDeleteTarget] = useState(null) // voucher_id
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => { fetchVouchers() }, [])
 
@@ -78,13 +81,16 @@ export default function AdminVouchers() {
     } finally { setSaving(false) }
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Hapus voucher ini?')) return
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await api.delete(`/vouchers/admin/${id}`)
+      await api.delete(`/vouchers/admin/${deleteTarget}`)
       toast.success('Voucher dihapus')
+      setDeleteTarget(null)
       fetchVouchers()
     } catch { toast.error('Gagal menghapus') }
+    finally { setDeleting(false) }
   }
 
   const inputStyle = {
@@ -104,7 +110,27 @@ export default function AdminVouchers() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .vouchers-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 16px !important;
+          }
+          .vouchers-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .vouchers-table-wrap table {
+            min-width: 650px;
+          }
+          .vouchers-modal-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
+      <div className="vouchers-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <h1 style={{
           fontFamily: 'var(--font-sans)', fontSize: '1.8rem',
           fontWeight: 900, letterSpacing: '-0.02em',
@@ -123,7 +149,7 @@ export default function AdminVouchers() {
         </button>
       </div>
 
-      <div style={{
+      <div className="vouchers-table-wrap" style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-lg)', overflow: 'hidden'
@@ -201,14 +227,24 @@ export default function AdminVouchers() {
                         borderRadius: 'var(--radius-xs)',
                         color: '#3b82f6', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700
                       }}>Edit</button>
-                    <button onClick={() => handleDelete(v.voucher_id)}
+                    <button onClick={() => setDeleteTarget(v.voucher_id)}
                       style={{
                         padding: '5px 10px',
                         background: 'rgba(239,68,68,0.1)',
                         border: '1px solid rgba(239,68,68,0.2)',
                         borderRadius: 'var(--radius-xs)',
-                        color: '#ef4444', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700
-                      }}>Hapus</button>
+                        color: '#ef4444', cursor: 'pointer',
+			fontSize: '0.72rem', fontWeight: 700,
+			transition: 'all 0.15s ease'
+                      }}
+		      onMouseEnter={e => {
+			e.currentTarget.style.background = '#ef4444'
+    			e.currentTarget.style.color = 'white'
+		      }}
+		      onMouseLeave={e => {
+			e.currentTarget.style.background = 'rgba(239,68,68,0.1)'
+    			e.currentTarget.style.color = '#ef4444'
+		      }}>Hapus</button>
                   </div>
                 </td>
               </tr>
@@ -249,7 +285,7 @@ export default function AdminVouchers() {
             </div>
 
             <form onSubmit={handleSave}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="vouchers-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={labelStyle}>Kode Voucher</label>
                   <input type="text" value={form.code}
@@ -269,7 +305,7 @@ export default function AdminVouchers() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="vouchers-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={labelStyle}>
                     Nilai {form.type === 'percentage' ? '(%)' : '(Rp)'}
@@ -288,7 +324,7 @@ export default function AdminVouchers() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="vouchers-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={labelStyle}>Min. Pembelian (Rp)</label>
                   <input type="number" value={form.min_purchase}
@@ -365,6 +401,15 @@ export default function AdminVouchers() {
           </div>
         </div>
       )}
+      <ConfirmModal
+  	show={!!deleteTarget}
+  	onClose={() => setDeleteTarget(null)}
+  	onConfirm={handleDelete}
+  	loading={deleting}
+  	title="HAPUS VOUCHER?"
+  	message="Voucher ini akan dihapus permanen. User yang sudah punya kode tidak bisa memakainya lagi."
+  	confirmLabel="YA, HAPUS"
+      />
     </div>
   )
 }

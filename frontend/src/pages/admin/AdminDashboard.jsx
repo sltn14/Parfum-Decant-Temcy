@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Users, Package, ShoppingBag, TrendingUp, ArrowRight } from 'lucide-react'
+import { Package, ShoppingBag, TrendingUp, ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
@@ -16,54 +16,59 @@ const STATUS_CONFIG = {
   cancelled: { label: 'DIBATALKAN', color: '#ef4444' }
 }
 
-const useInView = (threshold = 0.1) => {
-  const ref = useRef(null)
-  const [inView, setInView] = useState(false)
-  useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setInView(true) }, { threshold })
-    if (ref.current) obs.observe(ref.current)
-    return () => obs.disconnect()
-  }, [])
-  return [ref, inView]
-}
-
-const Counter = ({ end, prefix = '', suffix = '', duration = 1500, isRupiah = false }) => {
+// Counter animasi — tidak pakai IntersectionObserver
+const Counter = ({ end, isRupiah = false, suffix = '', duration = 1200, animate }) => {
   const [count, setCount] = useState(0)
-  const [ref, inView] = useInView()
+
   useEffect(() => {
-    if (!inView) return
+    if (!animate) return
+    if (end === 0) { setCount(0); return }
+
     let start = 0
     const step = end / (duration / 16)
     const timer = setInterval(() => {
       start += step
-      if (start >= end) { setCount(end); clearInterval(timer) }
-      else setCount(Math.floor(start))
+      if (start >= end) {
+        setCount(end)
+        clearInterval(timer)
+      } else {
+        setCount(Math.floor(start))
+      }
     }, 16)
     return () => clearInterval(timer)
-  }, [inView])
-  return (
-    <span ref={ref}>
-      {isRupiah
-        ? formatRupiah(count)
-        : `${prefix}${count.toLocaleString('id-ID')}${suffix}`}
-    </span>
-  )
+  }, [animate, end])
+
+  if (isRupiah) return <span>{formatRupiah(count)}</span>
+  return <span>{count.toLocaleString('id-ID')}{suffix}</span>
 }
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [statsRef, statsInView] = useInView()
+  const [animated, setAnimated] = useState(false)
 
-  useEffect(() => { fetchStats() }, [])
+  useEffect(() => {
+    fetchStats()
+  }, [])
+
+  // Trigger animasi setelah data loaded
+  useEffect(() => {
+    if (stats && !loading) {
+      const timer = setTimeout(() => setAnimated(true), 100)
+      return () => clearTimeout(timer)
+    }
+  }, [stats, loading])
 
   const fetchStats = async () => {
     try {
       const res = await api.get('/admin/dashboard')
       setStats(res.data)
-    } catch { toast.error('Gagal memuat dashboard') }
-    finally { setLoading(false) }
+    } catch {
+      toast.error('Gagal memuat dashboard')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) return (
@@ -78,14 +83,6 @@ export default function AdminDashboard() {
   )
 
   const statCards = [
-    {
-      label: 'TOTAL PENGGUNA',
-      value: stats?.stats?.totalUsers || 0,
-      icon: <Users size={20} />,
-      color: '#3b82f6',
-      suffix: ' user',
-      onClick: () => navigate('/admin/users')
-    },
     {
       label: 'TOTAL PRODUK',
       value: stats?.stats?.totalProducts || 0,
@@ -114,6 +111,17 @@ export default function AdminDashboard() {
 
   return (
     <div>
+      <style>{`
+        @media (max-width: 768px) {
+          .dash-stat-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .dash-bottom-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
       {/* Header */}
       <div style={{ marginBottom: 36 }}>
         <div style={{
@@ -129,8 +137,8 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stat Cards */}
-      <div ref={statsRef} style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+      <div className="dash-stat-grid" style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
         gap: 16, marginBottom: 36
       }}>
         {statCards.map(({ label, value, icon, color, suffix, isRupiah, onClick }, i) => (
@@ -141,15 +149,15 @@ export default function AdminDashboard() {
               border: '1px solid var(--border-default)',
               borderRadius: 'var(--radius-lg)', padding: '20px 22px',
               cursor: 'pointer',
-              opacity: statsInView ? 1 : 0,
-              transform: statsInView ? 'translateY(0)' : 'translateY(20px)',
-              transition: `all 0.5s ease ${i * 0.08}s`,
+              opacity: animated ? 1 : 0,
+              transform: animated ? 'translateY(0)' : 'translateY(20px)',
+              transition: `opacity 0.5s ease ${i * 0.08}s, transform 0.5s ease ${i * 0.08}s, border-color 0.2s, box-shadow 0.2s`,
               position: 'relative', overflow: 'hidden'
             }}
             onMouseEnter={e => {
               e.currentTarget.style.borderColor = color + '40'
               e.currentTarget.style.transform = 'translateY(-3px)'
-              e.currentTarget.style.boxShadow = `0 8px 24px rgba(0,0,0,0.3)`
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)'
             }}
             onMouseLeave={e => {
               e.currentTarget.style.borderColor = 'var(--border-default)'
@@ -161,7 +169,7 @@ export default function AdminDashboard() {
             <div style={{
               position: 'absolute', top: -20, right: -20,
               width: 80, height: 80, borderRadius: '50%',
-              background: color + '12'
+              background: color + '12', pointerEvents: 'none'
             }} />
 
             <div style={{
@@ -177,12 +185,12 @@ export default function AdminDashboard() {
                 width: 36, height: 36, borderRadius: 'var(--radius-sm)',
                 background: color + '15',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color, position: 'relative', zIndex: 1
+                color, position: 'relative', zIndex: 1, flexShrink: 0
               }}>{icon}</div>
             </div>
 
             <div style={{
-              fontSize: isRupiah ? '1rem' : '1.8rem',
+              fontSize: isRupiah ? '1.05rem' : '1.8rem',
               fontWeight: 900, letterSpacing: '-0.03em',
               color: 'var(--text-primary)', lineHeight: 1
             }}>
@@ -190,13 +198,14 @@ export default function AdminDashboard() {
                 end={value}
                 isRupiah={isRupiah}
                 suffix={!isRupiah ? suffix : ''}
+                animate={animated}
               />
             </div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="dash-bottom-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
         {/* Recent Orders */}
         <div style={{
@@ -226,7 +235,10 @@ export default function AdminDashboard() {
           </div>
 
           {!stats?.recentOrders?.length ? (
-            <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+            <div style={{
+              textAlign: 'center', padding: '32px 0',
+              color: 'var(--text-muted)', fontSize: '0.82rem'
+            }}>
               Belum ada pesanan
             </div>
           ) : (
@@ -234,17 +246,25 @@ export default function AdminDashboard() {
               {stats.recentOrders.map((order, i) => {
                 const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending
                 return (
-                  <div key={order.order_id} style={{
-                    display: 'flex', justifyContent: 'space-between',
-                    alignItems: 'center', padding: '12px 0',
-                    borderBottom: i < stats.recentOrders.length - 1 ? '1px solid var(--border-default)' : 'none'
-                  }}>
+                  <div key={order.order_id}
+                    onClick={() => navigate('/admin/orders')}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between',
+                      alignItems: 'center', padding: '12px 0',
+                      borderBottom: i < stats.recentOrders.length - 1 ? '1px solid var(--border-default)' : 'none',
+                      cursor: 'pointer', transition: 'opacity 0.15s ease'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                  >
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 2 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 3 }}>
                         {order.order_code}
                       </div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>
-                        {order.user?.full_name} · {new Date(order.createdAt).toLocaleDateString('id-ID')}
+                        {order.user?.full_name} · {new Date(order.createdAt).toLocaleDateString('id-ID', {
+                          day: 'numeric', month: 'short', year: 'numeric'
+                        })}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -252,10 +272,8 @@ export default function AdminDashboard() {
                         {formatRupiah(order.total_price)}
                       </div>
                       <span style={{
-                        fontSize: '0.58rem', fontWeight: 800,
-                        letterSpacing: '0.1em',
-                        color: status.color,
-                        background: status.color + '15',
+                        fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.1em',
+                        color: status.color, background: status.color + '15',
                         padding: '2px 8px', borderRadius: 'var(--radius-xs)'
                       }}>{status.label}</span>
                     </div>
@@ -279,20 +297,23 @@ export default function AdminDashboard() {
           }}>STATUS PESANAN</div>
 
           {!stats?.ordersByStatus?.length ? (
-            <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+            <div style={{
+              textAlign: 'center', padding: '32px 0',
+              color: 'var(--text-muted)', fontSize: '0.82rem'
+            }}>
               Belum ada data
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {stats.ordersByStatus.map(({ status, count }) => {
                 const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending
                 const total = stats.ordersByStatus.reduce((sum, s) => sum + parseInt(s.count), 0)
-                const pct = Math.round((parseInt(count) / total) * 100)
+                const pct = total > 0 ? Math.round((parseInt(count) / total) * 100) : 0
                 return (
                   <div key={status}>
                     <div style={{
                       display: 'flex', justifyContent: 'space-between',
-                      marginBottom: 6, fontSize: '0.78rem'
+                      marginBottom: 7, fontSize: '0.78rem'
                     }}>
                       <span style={{ color: config.color, fontWeight: 700, letterSpacing: '0.04em' }}>
                         {config.label}
@@ -306,9 +327,11 @@ export default function AdminDashboard() {
                       borderRadius: 3, overflow: 'hidden'
                     }}>
                       <div style={{
-                        width: `${pct}%`, height: '100%',
-                        background: config.color, borderRadius: 3,
-                        transition: '800ms cubic-bezier(0.4,0,0.2,1)'
+                        width: animated ? `${pct}%` : '0%',
+                        height: '100%',
+                        background: config.color,
+                        borderRadius: 3,
+                        transition: 'width 800ms cubic-bezier(0.4,0,0.2,1) 300ms'
                       }} />
                     </div>
                   </div>

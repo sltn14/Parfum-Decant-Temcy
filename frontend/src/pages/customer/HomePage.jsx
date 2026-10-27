@@ -239,9 +239,27 @@ export default function HomePage() {
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', background: 'var(--bg-primary)' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .home-hero-section { padding: 0 16px !important; }
+          .home-stats-section { padding: 48px 16px !important; }
+          .home-stats-grid { grid-template-columns: 1fr !important; }
+          .home-stats-grid > div {
+            border-radius: var(--radius-lg) !important;
+            border-bottom: 1px solid var(--border-default) !important;
+          }
+          .home-section-pad { padding: 0 16px 48px !important; }
+          .home-section-header { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
+          .home-new-section { padding: 48px 16px !important; }
+          .home-cats-section { padding: 48px 16px !important; }
+          .home-ai-section { padding: 0 16px 48px !important; }
+          .home-ai-inner { padding: 32px 24px !important; flex-direction: column !important; }
+          .home-trust-badges { gap: 16px !important; }
+        }
+      `}</style>
 
       {/* ===== HERO ===== */}
-      <section style={{
+      <section className="home-hero-section" style={{
         minHeight: '92vh', display: 'flex', alignItems: 'center',
         position: 'relative', overflow: 'hidden', padding: '0 32px'
       }}>
@@ -479,9 +497,9 @@ export default function HomePage() {
       </div>
 
       {/* ===== STATS ===== */}
-      <section style={{ padding: '80px 32px' }} ref={statsRef}>
+      <section className="home-stats-section" style={{ padding: '80px 32px' }} ref={statsRef}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-          <div style={{
+          <div className="home-stats-grid" style={{
             display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
             gap: 2
           }}>
@@ -523,10 +541,10 @@ export default function HomePage() {
       </section>
 
       {/* ===== POPULAR PRODUCTS ===== */}
-      <section style={{ padding: '0 32px 80px' }} ref={popularRef}>
+      <section className="home-section-pad" style={{ padding: '0 32px 80px' }} ref={popularRef}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
 
-          <div style={{
+          <div className="home-section-header" style={{
             display: 'flex', justifyContent: 'space-between',
             alignItems: 'flex-end', marginBottom: 40,
             opacity: popularInView ? 1 : 0,
@@ -580,9 +598,9 @@ export default function HomePage() {
       </section>
 
       {/* ===== AI ADVISOR BANNER ===== */}
-      <section style={{ padding: '0 32px 80px' }}>
+      <section className="home-ai-section" style={{ padding: '0 32px 80px' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-          <div style={{
+          <div className="home-ai-inner" style={{
             position: 'relative', overflow: 'hidden',
             borderRadius: 'var(--radius-lg)',
             background: 'var(--bg-card)',
@@ -666,13 +684,13 @@ export default function HomePage() {
       </section>
 
       {/* ===== NEW ARRIVALS ===== */}
-      <section style={{
+      <section className="home-new-section" style={{
         padding: '80px 32px',
         background: 'var(--bg-secondary)',
         borderTop: '1px solid var(--border-default)'
       }} ref={newRef}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-          <div style={{
+          <div className="home-section-header" style={{
             display: 'flex', justifyContent: 'space-between',
             alignItems: 'flex-end', marginBottom: 40,
             opacity: newInView ? 1 : 0,
@@ -720,7 +738,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== CATEGORIES ===== */}
-      <section style={{ padding: '80px 32px' }}>
+      <section className="home-cats-section" style={{ padding: '80px 32px' }}>
         <div style={{ maxWidth: 1400, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{

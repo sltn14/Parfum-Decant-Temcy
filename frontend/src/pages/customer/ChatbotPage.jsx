@@ -91,9 +91,18 @@ export default function ChatbotPage() {
       height: '100vh', display: 'flex', flexDirection: 'column',
       background: 'var(--bg-primary)'
     }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .chat-header { padding: 10px 16px !important; }
+          .chat-messages-area { padding: 0 16px !important; }
+          .chat-suggestions { padding: 0 16px 12px !important; }
+          .chat-input-area { padding: 10px 16px !important; }
+          .chat-bubble { max-width: 90% !important; }
+        }
+      `}</style>
 
       {/* Header */}
-      <div style={{
+      <div className="chat-header" style={{
         background: 'rgba(6,6,10,0.92)',
         backdropFilter: 'blur(20px)',
         borderBottom: '1px solid var(--border-default)',
@@ -164,7 +173,7 @@ export default function ChatbotPage() {
         padding: '24px 0',
         display: 'flex', flexDirection: 'column'
       }}>
-        <div style={{
+        <div className="chat-messages-area" style={{
           maxWidth: 800, width: '100%',
           margin: '0 auto', padding: '0 32px',
           display: 'flex', flexDirection: 'column', gap: 16
@@ -192,7 +201,7 @@ export default function ChatbotPage() {
               </div>
 
               {/* Bubble */}
-              <div style={{
+              <div className="chat-bubble" style={{
                 maxWidth: '72%',
                 padding: '12px 16px',
                 background: msg.role === 'user'
@@ -251,7 +260,7 @@ export default function ChatbotPage() {
 
       {/* Suggestions — hanya tampil di awal */}
       {messages.length === 1 && (
-        <div style={{
+        <div className="chat-suggestions" style={{
           maxWidth: 800, width: '100%',
           margin: '0 auto', padding: '0 32px 16px'
         }}>
@@ -290,7 +299,7 @@ export default function ChatbotPage() {
       )}
 
       {/* Input */}
-      <div style={{
+      <div className="chat-input-area" style={{
         borderTop: '1px solid var(--border-default)',
         padding: '14px 32px',
         background: 'rgba(6,6,10,0.92)',

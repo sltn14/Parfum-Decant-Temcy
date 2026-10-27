@@ -252,7 +252,15 @@ export default function CatalogPage() {
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .catalog-outer-pad { padding: 24px 16px !important; }
+          .catalog-header-row { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+          .catalog-filter-bar { gap: 8px !important; }
+          .catalog-filter-bar > div select { font-size: 0.78rem !important; padding: 9px 30px 9px 10px !important; }
+        }
+      `}</style>
+      <div className="catalog-outer-pad" style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
 
         {/* Header */}
         <div ref={headerRef} style={{
@@ -268,7 +276,7 @@ export default function CatalogPage() {
           }}>
             Koleksi Lengkap
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div className="catalog-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <h1 style={{
               fontFamily: 'var(--font-heading)',
               fontSize: 'clamp(2rem, 4vw, 3rem)',
@@ -285,7 +293,7 @@ export default function CatalogPage() {
         </div>
 
         {/* Filter Bar */}
-        <div style={{
+        <div className="catalog-filter-bar" style={{
           display: 'flex', gap: 12, marginBottom: 40,
           flexWrap: 'wrap', alignItems: 'center'
         }}>

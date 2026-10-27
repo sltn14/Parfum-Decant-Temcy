@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, CheckCircle, Clock, Truck, Store } from 'lucide-react'
+import { ArrowLeft, Clock, Truck, Store } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
@@ -24,10 +24,8 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [paying, setPaying] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
-  const fileRef = useRef()
 
   useEffect(() => { fetchOrder() }, [id])
 
@@ -48,38 +46,32 @@ export default function OrderDetailPage() {
     setPaying(true)
     try {
       const res = await api.post(`/orders/my-orders/${id}/create-payment`)
-      const { token } = res.data
-      if (!window.snap) {
-        toast.error('Midtrans belum siap. Refresh halaman.')
+      const token = res.data.snap_token
+
+      if (!token) {
+        toast.error('Gagal mendapatkan token pembayaran')
         return
       }
+
+      if (!window.snap) {
+        const script = document.createElement('script')
+        script.src = 'https://app.sandbox.midtrans.com/snap/snap.js'
+        script.setAttribute('data-client-key', import.meta.env.VITE_MIDTRANS_CLIENT_KEY || '')
+        document.head.appendChild(script)
+        await new Promise(resolve => { script.onload = resolve })
+      }
+
       window.snap.pay(token, {
-        onSuccess: async () => { toast.success('Pembayaran berhasil!'); fetchOrder() },
-        onPending: async () => { toast('Pembayaran pending'); fetchOrder() },
+        onSuccess: () => { toast.success('Pembayaran berhasil!'); fetchOrder() },
+        onPending: () => { toast('Menunggu pembayaran...', { icon: '⏳' }); fetchOrder() },
         onError: () => toast.error('Pembayaran gagal'),
-        onClose: () => toast('Pembayaran dibatalkan')
+        onClose: () => toast('Pembayaran belum selesai', { icon: '⚠️' })
       })
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Gagal memproses pembayaran')
     } finally {
       setPaying(false)
     }
-  }
-
-  const handleUploadPayment = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('payment_proof', file)
-      await api.post(`/orders/my-orders/${id}/payment-proof`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      toast.success('Bukti pembayaran berhasil diupload!')
-      fetchOrder()
-    } catch { toast.error('Gagal upload bukti pembayaran') }
-    finally { setUploading(false) }
   }
 
   const handleCancelOrder = async () => {
@@ -123,9 +115,19 @@ export default function OrderDetailPage() {
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '48px 32px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .od-outer-pad { padding: 24px 16px !important; }
+          .od-header-row { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
+          .od-main-grid { grid-template-columns: 1fr !important; }
+          .od-summary { position: static !important; }
+          .od-steps-wrap { padding: 16px !important; overflow-x: auto !important; }
+          .od-steps-inner { min-width: 360px; }
+          .od-step-label { font-size: 0.48rem !important; }
+        }
+      `}</style>
+      <div className="od-outer-pad" style={{ maxWidth: 960, margin: '0 auto', padding: '48px 32px' }}>
 
-        {/* Back */}
         <button onClick={() => navigate('/orders')} style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           color: 'var(--text-muted)', marginBottom: 32,
@@ -140,8 +142,7 @@ export default function OrderDetailPage() {
           <ArrowLeft size={14} /> KEMBALI KE PESANAN
         </button>
 
-        {/* Header */}
-        <div style={{
+        <div className="od-header-row" style={{
           display: 'flex', justifyContent: 'space-between',
           alignItems: 'flex-start', marginBottom: 28
         }}>
@@ -151,10 +152,9 @@ export default function OrderDetailPage() {
               letterSpacing: '0.22em', textTransform: 'uppercase',
               color: 'var(--accent-red)', marginBottom: 8
             }}>Detail Pesanan</div>
-            <h1 style={{
-              fontSize: '1.5rem', fontWeight: 900,
-              letterSpacing: '-0.02em', marginBottom: 8
-            }}>{order.order_code}</h1>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.02em', marginBottom: 8 }}>
+              {order.order_code}
+            </h1>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
               fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500
@@ -170,20 +170,18 @@ export default function OrderDetailPage() {
             background: status.bg, color: status.color,
             border: `1px solid ${status.border}`,
             borderRadius: 'var(--radius-xs)',
-            fontSize: '0.62rem', fontWeight: 800,
-            letterSpacing: '0.15em'
+            fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.15em'
           }}>{status.label}</span>
         </div>
 
-        {/* Progress Steps */}
         {order.status !== 'cancelled' && (
-          <div style={{
+          <div className="od-steps-wrap" style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
             borderRadius: 'var(--radius-lg)',
             padding: '22px 28px', marginBottom: 24
           }}>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div className="od-steps-inner" style={{ display: 'flex', alignItems: 'center' }}>
               {STEPS.map((step, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center',
@@ -191,20 +189,21 @@ export default function OrderDetailPage() {
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
                     <div style={{
-                      width: 30, height: 30, borderRadius: '50%',
+                      width: 32, height: 32, borderRadius: '50%',
                       background: i + 1 <= currentStep ? 'var(--accent-red)' : 'var(--bg-elevated)',
                       border: `1px solid ${i + 1 <= currentStep ? 'var(--accent-red)' : 'var(--border-default)'}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: '300ms ease'
+                      transition: '300ms ease', flexShrink: 0
                     }}>
                       {i + 1 <= currentStep
-                        ? <CheckCircle size={14} style={{ color: 'white' }} />
+                        ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
                         : <span style={{ fontSize: '0.62rem', fontWeight: 800, color: 'var(--text-muted)' }}>{i + 1}</span>
                       }
                     </div>
-                    <span style={{
-                      fontSize: '0.55rem', fontWeight: 800,
-                      letterSpacing: '0.1em',
+                    <span className="od-step-label" style={{
+                      fontSize: '0.55rem', fontWeight: 800, letterSpacing: '0.1em',
                       color: i + 1 <= currentStep ? 'var(--text-primary)' : 'var(--text-muted)',
                       whiteSpace: 'nowrap'
                     }}>{step}</span>
@@ -222,7 +221,6 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Cancelled Banner */}
         {order.status === 'cancelled' && (
           <div style={{
             padding: '16px 20px', marginBottom: 24,
@@ -235,8 +233,12 @@ export default function OrderDetailPage() {
               width: 36, height: 36, borderRadius: '50%',
               background: 'rgba(239,68,68,0.1)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, fontSize: '1rem'
-            }}>✕</div>
+              flexShrink: 0
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </div>
             <div>
               <div style={{
                 fontSize: '0.68rem', fontWeight: 800,
@@ -250,12 +252,9 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20 }}>
-
-          {/* LEFT */}
+        <div className="od-main-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Payment Action — hanya kalau pending */}
             {order.status === 'pending' && (
               <div style={{
                 background: 'rgba(245,158,11,0.04)',
@@ -268,7 +267,6 @@ export default function OrderDetailPage() {
                   color: '#f59e0b', marginBottom: 16
                 }}>SELESAIKAN PEMBAYARAN</div>
 
-                {/* Total */}
                 <div style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '12px 14px', marginBottom: 16,
@@ -279,60 +277,29 @@ export default function OrderDetailPage() {
                   <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>
                     Total Pembayaran
                   </span>
-                  <span style={{
-                    fontWeight: 900, fontSize: '1.1rem',
-                    color: 'var(--accent-red)', letterSpacing: '-0.02em'
-                  }}>
+                  <span style={{ fontWeight: 900, fontSize: '1.1rem', color: 'var(--accent-red)', letterSpacing: '-0.02em' }}>
                     {formatRupiah(order.total_price)}
                   </span>
                 </div>
 
-                {/* Tombol bayar + upload */}
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={handlePayment} disabled={paying}
-                    style={{
-                      flex: 1, padding: '13px',
-                      background: paying ? 'var(--border-hover)' : 'var(--accent-red)',
-                      color: 'white', fontWeight: 800,
-                      fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
-                      borderRadius: 'var(--radius-sm)', border: 'none',
-                      cursor: paying ? 'not-allowed' : 'pointer',
-                      boxShadow: paying ? 'none' : '0 4px 14px rgba(240,46,41,0.3)',
-                      transition: 'all 0.2s ease'
-                    }}>
-                    {paying ? 'MEMPROSES...' : 'BAYAR VIA QRIS'}
-                  </button>
+                <button onClick={handlePayment} disabled={paying}
+                  style={{
+                    width: '100%', padding: '13px',
+                    background: paying ? 'var(--border-hover)' : 'var(--accent-red)',
+                    color: 'white', fontWeight: 800,
+                    fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+                    borderRadius: 'var(--radius-sm)', border: 'none',
+                    cursor: paying ? 'not-allowed' : 'pointer',
+                    boxShadow: paying ? 'none' : '0 4px 14px rgba(240,46,41,0.3)',
+                    transition: 'all 0.2s ease', marginBottom: 10
+                  }}>
+                  {paying ? 'MEMPROSES...' : 'BAYAR VIA QRIS'}
+                </button>
 
-                  <input ref={fileRef} type="file" accept="image/*"
-                    onChange={handleUploadPayment} style={{ display: 'none' }} />
-                  <button onClick={() => fileRef.current.click()} disabled={uploading}
-                    style={{
-                      flex: 1, padding: '13px',
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border-default)',
-                      color: 'var(--text-secondary)', fontWeight: 800,
-                      fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
-                      borderRadius: 'var(--radius-sm)',
-                      cursor: uploading ? 'not-allowed' : 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={e => {
-                      if (!uploading) e.currentTarget.style.borderColor = 'var(--border-hover)'
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = 'var(--border-default)'
-                    }}>
-                    <Upload size={13} />
-                    {uploading ? 'MENGUPLOAD...' : 'UPLOAD BUKTI'}
-                  </button>
-                </div>
-
-                {/* Tombol batalkan */}
                 <button
                   onClick={() => setShowCancelModal(true)}
                   style={{
-                    width: '100%', padding: '11px', marginTop: 10,
+                    width: '100%', padding: '11px',
                     background: 'transparent',
                     border: '1px solid rgba(239,68,68,0.25)',
                     borderRadius: 'var(--radius-sm)',
@@ -348,7 +315,6 @@ export default function OrderDetailPage() {
               </div>
             )}
 
-            {/* Delivery method */}
             <div style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border-default)',
@@ -359,7 +325,6 @@ export default function OrderDetailPage() {
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 16
               }}>METODE PENGIRIMAN</div>
-
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '12px 14px',
@@ -369,10 +334,8 @@ export default function OrderDetailPage() {
               }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: 'var(--radius-sm)',
-                  background: order.delivery_method === 'pickup'
-                    ? 'rgba(34,197,94,0.1)' : 'rgba(240,46,41,0.1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0
+                  background: order.delivery_method === 'pickup' ? 'rgba(34,197,94,0.1)' : 'rgba(240,46,41,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                 }}>
                   {order.delivery_method === 'pickup'
                     ? <Store size={16} style={{ color: '#22c55e' }} />
@@ -393,15 +356,12 @@ export default function OrderDetailPage() {
                     </div>
                   )}
                   {order.delivery_method === 'pickup' && (
-                    <div style={{ fontSize: '0.72rem', color: '#22c55e', fontWeight: 600 }}>
-                      Gratis Ongkir
-                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#22c55e', fontWeight: 600 }}>Gratis Ongkir</div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Tracking info */}
             {order.tracking_number && (
               <div style={{
                 background: 'rgba(6,182,212,0.04)',
@@ -416,18 +376,12 @@ export default function OrderDetailPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {order.courier && (
                     <div style={{ display: 'flex', gap: 14, fontSize: '0.82rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 600, minWidth: 60, fontSize: '0.72rem' }}>
-                        Kurir
-                      </span>
-                      <span style={{ fontWeight: 700 }}>
-                        {order.courier.toUpperCase()} {order.courier_service}
-                      </span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 600, minWidth: 60, fontSize: '0.72rem' }}>Kurir</span>
+                      <span style={{ fontWeight: 700 }}>{order.courier.toUpperCase()} {order.courier_service}</span>
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 14, fontSize: '0.82rem' }}>
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 600, minWidth: 60, fontSize: '0.72rem' }}>
-                      No. Resi
-                    </span>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 600, minWidth: 60, fontSize: '0.72rem' }}>No. Resi</span>
                     <span style={{ fontWeight: 900, color: '#06b6d4', letterSpacing: '0.06em', fontSize: '0.9rem' }}>
                       {order.tracking_number}
                     </span>
@@ -436,7 +390,6 @@ export default function OrderDetailPage() {
               </div>
             )}
 
-            {/* Order Items */}
             <div style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border-default)',
@@ -447,7 +400,6 @@ export default function OrderDetailPage() {
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 18
               }}>PRODUK DIPESAN</div>
-
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 {order.items?.map((item, i) => (
                   <div key={i} style={{
@@ -469,9 +421,7 @@ export default function OrderDetailPage() {
                         letterSpacing: '0.1em', textTransform: 'uppercase',
                         color: 'var(--accent-red)', marginBottom: 3
                       }}>{item.brand}</div>
-                      <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: 2 }}>
-                        {item.product_name}
-                      </div>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: 2 }}>{item.product_name}</div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                         {item.size_ml}ml × {item.quantity}
                       </div>
@@ -484,7 +434,6 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {/* Shipping Info */}
             <div style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border-default)',
@@ -506,13 +455,8 @@ export default function OrderDetailPage() {
                   order.shipping_notes && { label: 'Catatan', value: order.shipping_notes }
                 ].filter(Boolean).map(({ label, value }) => (
                   <div key={label} style={{ display: 'flex', gap: 16 }}>
-                    <span style={{
-                      fontSize: '0.72rem', fontWeight: 600,
-                      color: 'var(--text-muted)', minWidth: 72
-                    }}>{label}</span>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                      {value}
-                    </span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', minWidth: 72 }}>{label}</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{value}</span>
                   </div>
                 ))}
               </div>
@@ -520,7 +464,7 @@ export default function OrderDetailPage() {
           </div>
 
           {/* RIGHT — Summary */}
-          <div style={{
+          <div className="od-summary" style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
             borderRadius: 'var(--radius-lg)', padding: 22,
@@ -551,14 +495,9 @@ export default function OrderDetailPage() {
                 },
                 { label: 'Metode Bayar', value: 'QRIS' }
               ].filter(Boolean).map(({ label, value, green }) => (
-                <div key={label} style={{
-                  display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem'
-                }}>
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
                   <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{label}</span>
-                  <span style={{
-                    fontWeight: 700,
-                    color: green ? '#22c55e' : 'var(--text-primary)'
-                  }}>{value}</span>
+                  <span style={{ fontWeight: 700, color: green ? '#22c55e' : 'var(--text-primary)' }}>{value}</span>
                 </div>
               ))}
             </div>
@@ -568,13 +507,11 @@ export default function OrderDetailPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
               <span style={{
                 fontSize: '0.62rem', fontWeight: 800,
-                letterSpacing: '0.15em', textTransform: 'uppercase',
-                color: 'var(--text-muted)'
+                letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text-muted)'
               }}>TOTAL</span>
-              <span style={{
-                fontWeight: 900, fontSize: '1.15rem',
-                color: 'var(--accent-red)', letterSpacing: '-0.02em'
-              }}>{formatRupiah(order.total_price)}</span>
+              <span style={{ fontWeight: 900, fontSize: '1.15rem', color: 'var(--accent-red)', letterSpacing: '-0.02em' }}>
+                {formatRupiah(order.total_price)}
+              </span>
             </div>
 
             {order.paid_at && (
@@ -608,7 +545,6 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Cancel Confirmation Modal */}
       {showCancelModal && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 1000,
@@ -628,15 +564,12 @@ export default function OrderDetailPage() {
               background: 'rgba(239,68,68,0.1)',
               border: '1px solid rgba(239,68,68,0.2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 20px',
-              fontSize: '1.4rem', color: '#ef4444', fontWeight: 900
+              margin: '0 auto 20px', fontSize: '1.4rem', color: '#ef4444', fontWeight: 900
             }}>!</div>
-
             <h3 style={{
               fontWeight: 900, fontSize: '1rem',
               textTransform: 'uppercase', letterSpacing: '-0.01em', marginBottom: 10
             }}>BATALKAN PESANAN?</h3>
-
             <p style={{
               color: 'var(--text-muted)', fontSize: '0.82rem',
               lineHeight: 1.8, marginBottom: 28, fontWeight: 400
@@ -644,34 +577,25 @@ export default function OrderDetailPage() {
               Pesanan <strong style={{ color: 'var(--text-primary)' }}>{order?.order_code}</strong> akan
               dibatalkan. Tindakan ini tidak dapat diurungkan.
             </p>
-
             <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => setShowCancelModal(false)}
-                style={{
-                  flex: 1, padding: '12px',
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-secondary)', fontWeight: 800,
-                  fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
-                  cursor: 'pointer'
-                }}>
-                TIDAK
-              </button>
-              <button
-                onClick={handleCancelOrder}
-                disabled={cancelling}
-                style={{
-                  flex: 1, padding: '12px',
-                  background: cancelling ? 'var(--border-hover)' : '#ef4444',
-                  color: 'white', borderRadius: 'var(--radius-sm)',
-                  fontWeight: 800, fontSize: '0.72rem',
-                  letterSpacing: '0.1em', textTransform: 'uppercase',
-                  border: 'none',
-                  cursor: cancelling ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease'
-                }}>
+              <button onClick={() => setShowCancelModal(false)} style={{
+                flex: 1, padding: '12px',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-secondary)', fontWeight: 800,
+                fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+                cursor: 'pointer'
+              }}>TIDAK</button>
+              <button onClick={handleCancelOrder} disabled={cancelling} style={{
+                flex: 1, padding: '12px',
+                background: cancelling ? 'var(--border-hover)' : '#ef4444',
+                color: 'white', borderRadius: 'var(--radius-sm)',
+                fontWeight: 800, fontSize: '0.72rem',
+                letterSpacing: '0.1em', textTransform: 'uppercase',
+                border: 'none', cursor: cancelling ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease'
+              }}>
                 {cancelling ? 'MEMBATALKAN...' : 'YA, BATALKAN'}
               </button>
             </div>

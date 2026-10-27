@@ -4,9 +4,14 @@ const { Op } = require('sequelize');
 const checkVoucher = async (req, res) => {
   try {
     const { code, total_price } = req.body;
+
+    if (!code) return res.status(400).json({ message: 'Kode voucher wajib diisi' });
+
+    const totalPrice = parseInt(total_price) || 0;
+
     const voucher = await Voucher.findOne({
       where: {
-        code: code.toUpperCase(),
+        code: code.toUpperCase().trim(),
         is_active: true,
         [Op.or]: [
           { expired_at: null },
@@ -15,20 +20,31 @@ const checkVoucher = async (req, res) => {
       }
     });
 
-    if (!voucher) return res.status(404).json({ message: 'Voucher tidak ditemukan atau sudah expired' });
-    if (voucher.used_count >= voucher.quota) return res.status(400).json({ message: 'Kuota voucher habis' });
-    if (total_price < voucher.min_purchase) {
+    if (!voucher) {
+      return res.status(404).json({ message: 'Voucher tidak ditemukan atau sudah tidak aktif' });
+    }
+
+    if (voucher.used_count >= voucher.quota) {
+      return res.status(400).json({ message: 'Kuota voucher sudah habis' });
+    }
+
+    if (totalPrice < voucher.min_purchase) {
       return res.status(400).json({
-        message: `Minimum pembelian ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(voucher.min_purchase)}`
+        message: `Minimum pembelian ${new Intl.NumberFormat('id-ID', {
+          style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+        }).format(voucher.min_purchase)} untuk menggunakan voucher ini`
       });
     }
 
     let discount = 0;
     if (voucher.type === 'percentage') {
-      discount = Math.floor(total_price * (voucher.value / 100));
-      if (voucher.max_discount) discount = Math.min(discount, voucher.max_discount);
+      discount = Math.floor(totalPrice * (voucher.value / 100));
+      if (voucher.max_discount && discount > voucher.max_discount) {
+        discount = voucher.max_discount;
+      }
     } else {
       discount = voucher.value;
+      if (discount > totalPrice) discount = totalPrice; // jangan sampai minus
     }
 
     return res.status(200).json({
@@ -37,18 +53,47 @@ const checkVoucher = async (req, res) => {
         code: voucher.code,
         type: voucher.type,
         value: voucher.value,
-        discount
+        discount,
+        min_purchase: voucher.min_purchase,
+        max_discount: voucher.max_discount
       }
     });
   } catch (err) {
+    console.error('checkVoucher error:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Admin
+// Endpoint baru — ambil semua voucher aktif untuk ditampilkan ke customer
+const getActiveVouchers = async (req, res) => {
+  try {
+    const vouchers = await Voucher.findAll({
+      where: {
+        is_active: true,
+        [Op.or]: [
+          { expired_at: null },
+          { expired_at: { [Op.gt]: new Date() } }
+        ],
+        // Masih ada kuota
+        used_count: { [Op.lt]: Voucher.sequelize.col('quota') }
+      },
+      attributes: ['voucher_id', 'code', 'type', 'value', 'min_purchase', 'max_discount', 'expired_at', 'quota', 'used_count'],
+      order: [['value', 'DESC']]
+    });
+
+    return res.status(200).json({ vouchers });
+  } catch (err) {
+    console.error('getActiveVouchers error:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
 const createVoucher = async (req, res) => {
   try {
-    const voucher = await Voucher.create({ ...req.body, code: req.body.code.toUpperCase() });
+    const voucher = await Voucher.create({
+      ...req.body,
+      code: req.body.code.toUpperCase().trim()
+    });
     return res.status(201).json({ message: 'Voucher berhasil dibuat', voucher });
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
@@ -89,4 +134,4 @@ const deleteVoucher = async (req, res) => {
   }
 };
 
-module.exports = { checkVoucher, createVoucher, getVouchers, updateVoucher, deleteVoucher };
+module.exports = { checkVoucher, getActiveVouchers, createVoucher, getVouchers, updateVoucher, deleteVoucher };

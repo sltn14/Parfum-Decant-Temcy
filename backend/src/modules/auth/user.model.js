@@ -12,7 +12,7 @@ const User = sequelize.define('User', {
   password: { type: DataTypes.STRING(255), allowNull: true },
   phone: { type: DataTypes.STRING(20), allowNull: true },
   avatar: { type: DataTypes.STRING(255), defaultValue: 'default-avatar.png' },
-  role: { type: DataTypes.ENUM('customer', 'admin'), defaultValue: 'customer' },
+  role: { type: DataTypes.ENUM('customer', 'admin', 'sysadmin'), defaultValue: 'customer' },
   google_id: { type: DataTypes.STRING(255), allowNull: true },
   is_verified: { type: DataTypes.BOOLEAN, defaultValue: false },
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
@@ -25,6 +25,7 @@ const User = sequelize.define('User', {
   bio: { type: DataTypes.TEXT, allowNull: true },
   reset_token: { type: DataTypes.STRING(255), allowNull: true },
   reset_token_expires: { type: DataTypes.DATE, allowNull: true },
+  last_login_at: { type: DataTypes.DATE, allowNull: true }
 }, {
   tableName: 'users',
   timestamps: true

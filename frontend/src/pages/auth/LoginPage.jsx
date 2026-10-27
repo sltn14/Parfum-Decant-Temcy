@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, ArrowRight } from 'lucide-react'
 import { FcGoogle } from 'react-icons/fc'
 import api from '../../api/axios'
@@ -8,11 +8,11 @@ import toast from 'react-hot-toast'
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const { setAuth } = useAuthStore()
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
@@ -21,13 +21,21 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const res = await api.post('/auth/login', form)
-      setAuth(res.data.user, res.data.token)
+      const { user, token } = res.data
+
+      setAuth(user, token, rememberMe)
+
       toast.success('Login berhasil!')
-      if (res.data.user.role === 'admin') {
-	window.location.href = '/admin'
-      } else {
-	window.location.href = '/'
-      }
+
+      // Delay sedikit biar state sempat tersimpan
+      setTimeout(() => {
+        if (user.role === 'admin') {
+          window.location.href = '/admin'
+        } else {
+          window.location.href = '/'
+        }
+      }, 200)
+
     } catch (err) {
       toast.error(err.response?.data?.message || 'Login gagal')
     } finally {
@@ -46,16 +54,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex',
-      background: 'var(--bg-primary)'
-    }}>
+    <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-primary)' }}>
+
       {/* Left Panel */}
       <div style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '48px 32px', position: 'relative'
       }}>
-        {/* BG */}
         <div style={{
           position: 'absolute', inset: 0,
           background: 'radial-gradient(ellipse at 30% 50%, rgba(240,46,41,0.08) 0%, transparent 60%)'
@@ -72,13 +77,11 @@ export default function LoginPage() {
               width: 32, height: 32, overflow: 'hidden',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              <img src="/logo.png" alt="DT"
-                style={{
-                  width: 100, height: 100,
-                  filter: 'brightness(0) invert(1)',
-                  transform: 'scale(2.2)', objectFit: 'contain'
-                }}
-              />
+              <img src="/logo.png" alt="DT" style={{
+                width: 100, height: 100,
+                filter: 'brightness(0) invert(1)',
+                transform: 'scale(2.2)', objectFit: 'contain'
+              }} />
             </div>
             <span style={{
               fontWeight: 900, fontSize: '0.82rem',
@@ -93,21 +96,18 @@ export default function LoginPage() {
           <div style={{ marginBottom: 36 }}>
             <h1 style={{
               fontSize: '2rem', fontWeight: 900,
-              letterSpacing: '-0.03em', textTransform: 'uppercase',
-              marginBottom: 8
+              letterSpacing: '-0.03em', textTransform: 'uppercase', marginBottom: 8
             }}>MASUK</h1>
-            <p style={{
-              color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 400
-            }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 400 }}>
               Belum punya akun?{' '}
               <Link to="/register" style={{
-                color: 'var(--accent-red)', fontWeight: 700,
-                textDecoration: 'none'
+                color: 'var(--accent-red)', fontWeight: 700, textDecoration: 'none'
               }}>Daftar sekarang</Link>
             </p>
           </div>
 
           <form onSubmit={handleSubmit}>
+
             {/* Email */}
             <div style={{ marginBottom: 16 }}>
               <label style={{
@@ -126,7 +126,7 @@ export default function LoginPage() {
             </div>
 
             {/* Password */}
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 20 }}>
               <label style={{
                 display: 'block', fontSize: '0.65rem', fontWeight: 800,
                 letterSpacing: '0.18em', textTransform: 'uppercase',
@@ -147,15 +147,44 @@ export default function LoginPage() {
                   style={{
                     position: 'absolute', right: 14, top: '50%',
                     transform: 'translateY(-50%)',
-                    color: 'var(--text-muted)', cursor: 'pointer'
+                    color: 'var(--text-muted)', cursor: 'pointer',
+                    background: 'none', border: 'none'
                   }}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
-            {/* Forgot */}
-            <div style={{ textAlign: 'right', marginBottom: 28 }}>
+            {/* Remember Me + Lupa Password */}
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', marginBottom: 28
+            }}>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer'
+              }}>
+                <div
+                  onClick={() => setRememberMe(!rememberMe)}
+                  style={{
+                    width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                    background: rememberMe ? 'var(--accent-red)' : 'var(--bg-elevated)',
+                    border: `1px solid ${rememberMe ? 'var(--accent-red)' : 'var(--border-default)'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', transition: 'all 0.15s ease'
+                  }}>
+                  {rememberMe && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5"
+                        strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+                <span style={{
+                  fontSize: '0.78rem', fontWeight: 600,
+                  color: 'var(--text-secondary)'
+                }}>Ingat saya</span>
+              </label>
+
               <Link to="/forgot-password" style={{
                 fontSize: '0.75rem', fontWeight: 700,
                 color: 'var(--accent-red)', textDecoration: 'none',
@@ -228,11 +257,12 @@ export default function LoginPage() {
               <FcGoogle size={18} />
               LANJUTKAN DENGAN GOOGLE
             </a>
+
           </form>
         </div>
       </div>
 
-      {/* Right Panel — Brand */}
+      {/* Right Panel */}
       <div style={{
         width: 480, background: 'var(--bg-card)',
         borderLeft: '1px solid var(--border-default)',
@@ -240,7 +270,6 @@ export default function LoginPage() {
         alignItems: 'center', justifyContent: 'center',
         padding: 48, position: 'relative', overflow: 'hidden'
       }}>
-        {/* BG decoration */}
         <div style={{
           position: 'absolute', top: -100, right: -100,
           width: 400, height: 400, borderRadius: '50%',
@@ -260,21 +289,18 @@ export default function LoginPage() {
           </div>
           <h2 style={{
             fontSize: '1.6rem', fontWeight: 900,
-            letterSpacing: '-0.02em', textTransform: 'uppercase',
-            marginBottom: 16
+            letterSpacing: '-0.02em', textTransform: 'uppercase', marginBottom: 16
           }}>
             PREMIUM<br />
             <span style={{ color: 'var(--accent-red)' }}>PARFUM DECANT</span>
           </h2>
           <p style={{
             color: 'var(--text-muted)', fontSize: '0.85rem',
-            lineHeight: 1.9, maxWidth: 280, margin: '0 auto 40px',
-            fontWeight: 400
+            lineHeight: 1.9, maxWidth: 280, margin: '0 auto 40px', fontWeight: 400
           }}>
             Temukan signature scent kamu dengan mencoba parfum premium dalam ukuran decant. Anti blind buy.
           </p>
 
-          {/* Stats */}
           <div style={{ display: 'flex', gap: 0 }}>
             {[
               { value: '50+', label: 'PRODUK' },
@@ -284,8 +310,11 @@ export default function LoginPage() {
               <div key={label} style={{
                 flex: 1, padding: '16px 8px',
                 background: 'var(--bg-elevated)',
-                borderRadius: i === 0 ? 'var(--radius-sm) 0 0 var(--radius-sm)' :
-                  i === 2 ? '0 var(--radius-sm) var(--radius-sm) 0' : 'none',
+                borderRadius: i === 0
+                  ? 'var(--radius-sm) 0 0 var(--radius-sm)'
+                  : i === 2
+                  ? '0 var(--radius-sm) var(--radius-sm) 0'
+                  : 'none',
                 border: '1px solid var(--border-default)',
                 borderLeft: i === 0 ? '1px solid var(--border-default)' : 'none',
                 textAlign: 'center'

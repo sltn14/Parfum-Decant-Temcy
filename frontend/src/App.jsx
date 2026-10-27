@@ -1,8 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import useAuthStore from './store/authStore'
-
-// Not Found Page
-import NotFoundPage from './pages/NotFoundPage'
 
 // Auth Pages
 import LoginPage from './pages/auth/LoginPage'
@@ -29,16 +27,27 @@ import AddressPage from './pages/customer/AddressPage'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminProducts from './pages/admin/AdminProducts'
 import AdminOrders from './pages/admin/AdminOrders'
-import AdminUsers from './pages/admin/AdminUsers'
 import AdminSalesReport from './pages/admin/AdminSalesReport'
 import AdminReviews from './pages/admin/AdminReviews'
 import AdminVouchers from './pages/admin/AdminVouchers'
+import AdminInventory from './pages/admin/AdminInventory'
+import AdminAIInsight from './pages/admin/AdminAIInsight'
 
-// Layout
+// SysAdmin Pages
+import SysAdminDashboard from './pages/sysadmin/SysAdminDashboard'
+import SysAdminUsers from './pages/sysadmin/SysAdminUsers'
+import SysAdminConfig from './pages/sysadmin/SysAdminConfig'
+import SysAdminMonitoring from './pages/sysadmin/SysAdminMonitoring'
+
+// Layouts
 import CustomerLayout from './components/layout/CustomerLayout'
 import AdminLayout from './components/layout/AdminLayout'
+import SysAdminLayout from './components/layout/SysAdminLayout'
 
-// Protected Route
+// Not Found
+import NotFoundPage from './pages/NotFoundPage'
+
+// Route Guards
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuthStore()
   return isAuthenticated ? children : <Navigate to="/login" />
@@ -51,8 +60,31 @@ const AdminRoute = ({ children }) => {
   return children
 }
 
+const SysAdminRoute = ({ children }) => {
+  const { user, isAuthenticated } = useAuthStore()
+  if (!isAuthenticated) return <Navigate to="/login" />
+  if (user?.role !== 'sysadmin') return <Navigate to="/" />
+  return children
+}
+
+const CustomerOnlyRoute = ({ children }) => {
+  const { user, isAuthenticated } = useAuthStore()
+  if (isAuthenticated && user?.role === 'admin') return <Navigate to="/admin" replace />
+  if (isAuthenticated && user?.role === 'sysadmin') return <Navigate to="/sysadmin" replace />
+  return children
+}
+
 function App() {
   return (
+    <>
+    <Toaster
+      position="top-right"
+      containerStyle={{ zIndex: 99999 }}
+      toastOptions={{
+        duration: 3000,
+        style: { fontSize: '0.85rem', fontWeight: 600 }
+      }}
+    />
     <Routes>
       {/* Auth */}
       <Route path="/login" element={<LoginPage />} />
@@ -63,34 +95,45 @@ function App() {
 
       {/* Customer */}
       <Route path="/" element={<CustomerLayout />}>
-        <Route index element={<HomePage />} />
-        <Route path="catalog" element={<CatalogPage />} />
-        <Route path="product/:id" element={<ProductDetailPage />} />
-        <Route path="cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
-        <Route path="checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
-        <Route path="orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
-        <Route path="orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
-        <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path="chatbot" element={<ChatbotPage />} />
-        <Route path="success" element={<ProtectedRoute><SuccessPage /></ProtectedRoute>} />
-	<Route path="favorites" element={<ProtectedRoute><FavoritePage /></ProtectedRoute>} />
-	<Route path="addresses" element={<ProtectedRoute><AddressPage /></ProtectedRoute>} />
+        <Route index element={<CustomerOnlyRoute><HomePage /></CustomerOnlyRoute>} />
+        <Route path="catalog" element={<CustomerOnlyRoute><CatalogPage /></CustomerOnlyRoute>} />
+        <Route path="product/:id" element={<CustomerOnlyRoute><ProductDetailPage /></CustomerOnlyRoute>} />
+        <Route path="chatbot" element={<CustomerOnlyRoute><ChatbotPage /></CustomerOnlyRoute>} />
+        <Route path="cart" element={<ProtectedRoute><CustomerOnlyRoute><CartPage /></CustomerOnlyRoute></ProtectedRoute>} />
+        <Route path="checkout" element={<ProtectedRoute><CustomerOnlyRoute><CheckoutPage /></CustomerOnlyRoute></ProtectedRoute>} />
+        <Route path="orders" element={<ProtectedRoute><CustomerOnlyRoute><OrdersPage /></CustomerOnlyRoute></ProtectedRoute>} />
+        <Route path="orders/:id" element={<ProtectedRoute><CustomerOnlyRoute><OrderDetailPage /></CustomerOnlyRoute></ProtectedRoute>} />
+        <Route path="profile" element={<ProtectedRoute><CustomerOnlyRoute><ProfilePage /></CustomerOnlyRoute></ProtectedRoute>} />
+        <Route path="success" element={<ProtectedRoute><CustomerOnlyRoute><SuccessPage /></CustomerOnlyRoute></ProtectedRoute>} />
+        <Route path="favorites" element={<ProtectedRoute><CustomerOnlyRoute><FavoritePage /></CustomerOnlyRoute></ProtectedRoute>} />
+        <Route path="addresses" element={<ProtectedRoute><CustomerOnlyRoute><AddressPage /></CustomerOnlyRoute></ProtectedRoute>} />
       </Route>
 
-      {/* Admin */}
+      {/* Admin Toko */}
       <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
         <Route index element={<AdminDashboard />} />
         <Route path="products" element={<AdminProducts />} />
         <Route path="orders" element={<AdminOrders />} />
-        <Route path="users" element={<AdminUsers />} />
-        <Route path="sales-report" element={<AdminSalesReport />} />
         <Route path="reviews" element={<AdminReviews />} />
-	<Route path="vouchers" element={<AdminVouchers />} />
+        <Route path="vouchers" element={<AdminVouchers />} />
+        <Route path="sales-report" element={<AdminSalesReport />} />
+        <Route path="inventory" element={<AdminInventory />} />
+        <Route path="ai-insight" element={<AdminAIInsight />} />
+      </Route>
+
+      {/* Administrator Sistem */}
+      <Route path="/sysadmin" element={<SysAdminRoute><SysAdminLayout /></SysAdminRoute>}>
+        <Route index element={<SysAdminDashboard />} />
+        <Route path="users" element={<SysAdminUsers />} />
+        <Route path="config" element={<SysAdminConfig />} />
+        <Route path="monitoring" element={<SysAdminMonitoring />} />
       </Route>
 
       {/* 404 */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+    </>
   )
 }
+
 export default App

@@ -68,7 +68,16 @@ export default function OrdersPage() {
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '48px 32px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .orders-outer-pad { padding: 24px 16px !important; }
+          .orders-header-row { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+          .orders-filter-tabs { padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+          .orders-card-top { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
+          .orders-card-top-right { flex-wrap: wrap !important; }
+        }
+      `}</style>
+      <div className="orders-outer-pad" style={{ maxWidth: 900, margin: '0 auto', padding: '48px 32px' }}>
 
         {/* Header */}
         <div style={{ marginBottom: 32 }}>
@@ -77,7 +86,7 @@ export default function OrdersPage() {
             letterSpacing: '0.22em', textTransform: 'uppercase',
             color: 'var(--accent-red)', marginBottom: 10
           }}>Riwayat</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div className="orders-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <h1 style={{
               fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
               fontWeight: 900, letterSpacing: '-0.03em', textTransform: 'uppercase'
@@ -94,7 +103,7 @@ export default function OrdersPage() {
 
         {/* Filter Tabs */}
         {orders.length > 0 && (
-          <div style={{
+          <div className="orders-filter-tabs" style={{
             display: 'flex', gap: 6, marginBottom: 28,
             overflowX: 'auto', paddingBottom: 4,
             scrollbarWidth: 'none'
@@ -198,7 +207,7 @@ export default function OrdersPage() {
                   }}
                 >
                   {/* Top row */}
-                  <div style={{
+                  <div className="orders-card-top" style={{
                     display: 'flex', justifyContent: 'space-between',
                     alignItems: 'flex-start', marginBottom: 14
                   }}>
@@ -226,7 +235,7 @@ export default function OrdersPage() {
                         )}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="orders-card-top-right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{
                         padding: '4px 12px',
                         background: status.bg,

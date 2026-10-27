@@ -4,6 +4,7 @@ const Cart = require('../cart/cart.model');
 const CartItem = require('../cart/cart_item.model');
 const Product = require('../products/product.model');
 const { snap } = require('../../config/midtrans');
+const { sendOrderEmail } = require('../../utils/emailHelper');
 
 // Generate order code
 const generateOrderCode = () => {
@@ -13,7 +14,7 @@ const generateOrderCode = () => {
   return `TM-${dateStr}-${random}`;
 };
 
-// Checkout (buat order dari cart)
+// Checkout
 const checkout = async (req, res) => {
   try {
     const {
@@ -23,7 +24,6 @@ const checkout = async (req, res) => {
       voucher_code, address_id
     } = req.body;
 
-    // Validasi hanya kalau delivery DAN tidak pakai address_id
     if (delivery_method === 'delivery' && !address_id) {
       if (!shipping_name || !shipping_phone || !shipping_address || !shipping_city) {
         return res.status(400).json({ message: 'Data pengiriman wajib diisi' });
@@ -41,7 +41,6 @@ const checkout = async (req, res) => {
 
     const subtotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-    // Hitung diskon voucher
     let discount_amount = 0;
     if (voucher_code) {
       const Voucher = require('../vouchers/voucher.model');
@@ -66,7 +65,6 @@ const checkout = async (req, res) => {
 
     const total_price = subtotal + parseInt(shipping_cost) - discount_amount;
 
-    // Ambil data shipping
     let shippingData = {
       shipping_name,
       shipping_phone,
@@ -75,12 +73,9 @@ const checkout = async (req, res) => {
       shipping_notes: shipping_notes || ''
     };
 
-    // Override kalau pakai address_id
     if (address_id) {
       const Address = require('../addresses/address.model');
-      const addr = await Address.findOne({
-        where: { address_id, user_id: req.user.user_id }
-      });
+      const addr = await Address.findOne({ where: { address_id, user_id: req.user.user_id } });
       if (addr) {
         shippingData = {
           shipping_name: addr.recipient_name,
@@ -94,7 +89,6 @@ const checkout = async (req, res) => {
       }
     }
 
-    // Kalau pickup, override shipping data
     if (delivery_method === 'pickup') {
       const User = require('../auth/user.model');
       const user = await User.findByPk(req.user.user_id);
@@ -174,29 +168,59 @@ const getOrder = async (req, res) => {
 const cancelOrder = async (req, res) => {
   try {
     const order = await Order.findOne({
-      where: { order_id: req.params.id, user_id: req.user.user_id }
+      where: { order_id: req.params.id, user_id: req.user.user_id },
+      include: [{ model: OrderItem, as: 'items' }]
     });
+
     if (!order) return res.status(404).json({ message: 'Order tidak ditemukan' });
 
-    // Hanya bisa cancel kalau masih pending
     if (order.status !== 'pending') {
-      return res.status(400).json({ message: 'Pesanan tidak dapat dibatalkan. Hanya pesanan dengan status menunggu pembayaran yang dapat dibatalkan.' });
+      return res.status(400).json({
+        message: 'Hanya pesanan dengan status menunggu pembayaran yang dapat dibatalkan'
+      });
     }
 
     await order.update({ status: 'cancelled' });
 
-    // Notifikasi
-    const Notification = require('../notification/notification.model');
-    await Notification.create({
-      user_id: order.user_id,
-      title: 'Pesanan Dibatalkan',
-      message: `Pesanan ${order.order_code} telah dibatalkan.`,
-      type: 'order'
-    });
+    // Notifikasi in-app
+    try {
+      const Notification = require('../notification/notification.model');
+      const notif = await Notification.create({
+        user_id: order.user_id,
+        title: 'Pesanan Dibatalkan',
+        message: `Pesanan ${order.order_code} berhasil dibatalkan.`,
+        type: 'order'
+      });
 
-    return res.status(200).json({ message: 'Pesanan berhasil dibatalkan' });
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user_${order.user_id}`).emit('notification', {
+          notification_id: notif.notification_id,
+          title: notif.title,
+          message: notif.message,
+          type: notif.type,
+          is_read: false,
+          createdAt: notif.createdAt
+        });
+      }
+    } catch (notifErr) {
+      console.error('Notif error:', notifErr.message);
+    }
+
+    // Kirim email
+    try {
+      const User = require('../auth/user.model');
+      const user = await User.findByPk(order.user_id, { attributes: ['email', 'full_name'] });
+      if (user) {
+        await sendOrderEmail(order, 'cancelled', user.email, user.full_name);
+      }
+    } catch (emailErr) {
+      console.error('Email error:', emailErr.message);
+    }
+
+    return res.status(200).json({ message: 'Pesanan berhasil dibatalkan', order });
   } catch (err) {
-    console.error(err);
+    console.error('cancelOrder error:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 };
@@ -233,13 +257,13 @@ const createPayment = async (req, res) => {
         quantity: item.quantity,
         name: `${item.product_name} (${item.size_ml}ml)`
       })),
-      enabled_payments: ['qris']
+      enabled_payments: ['other_qris', 'gopay']
     };
 
     const transaction = await snap.createTransaction(parameter);
 
     return res.status(200).json({
-      token: transaction.token,
+      snap_token: transaction.token,
       redirect_url: transaction.redirect_url
     });
   } catch (err) {
@@ -258,7 +282,6 @@ const uploadPaymentProof = async (req, res) => {
     if (order.status !== 'pending') {
       return res.status(400).json({ message: 'Order sudah diproses' });
     }
-
     if (!req.file) {
       return res.status(400).json({ message: 'File bukti pembayaran wajib diupload' });
     }
@@ -301,12 +324,13 @@ const getAllOrders = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    const order = await Order.findByPk(req.params.id);
+    const order = await Order.findByPk(req.params.id, {
+      include: [{ model: OrderItem, as: 'items' }]
+    });
     if (!order) return res.status(404).json({ message: 'Order tidak ditemukan' });
 
     await order.update({ status });
 
-    // Kirim notifikasi otomatis
     const Notification = require('../notification/notification.model');
     const statusMessages = {
       paid: { title: 'Pembayaran Dikonfirmasi', message: `Pembayaran pesanan ${order.order_code} telah dikonfirmasi admin.` },
@@ -317,12 +341,40 @@ const updateOrderStatus = async (req, res) => {
     };
 
     if (statusMessages[status]) {
-      await Notification.create({
-        user_id: order.user_id,
-        title: statusMessages[status].title,
-        message: statusMessages[status].message,
-        type: 'order'
-      });
+      // Notifikasi in-app
+      try {
+        const notif = await Notification.create({
+          user_id: order.user_id,
+          title: statusMessages[status].title,
+          message: statusMessages[status].message,
+          type: 'order'
+        });
+
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`user_${order.user_id}`).emit('notification', {
+            notification_id: notif.notification_id,
+            title: notif.title,
+            message: notif.message,
+            type: notif.type,
+            is_read: false,
+            createdAt: notif.createdAt
+          });
+        }
+      } catch (notifErr) {
+        console.error('Notif error:', notifErr.message);
+      }
+
+      // Kirim email
+      try {
+        const User = require('../auth/user.model');
+        const user = await User.findByPk(order.user_id, { attributes: ['email', 'full_name'] });
+        if (user) {
+          await sendOrderEmail(order, status, user.email, user.full_name);
+        }
+      } catch (emailErr) {
+        console.error('Email error:', emailErr.message);
+      }
     }
 
     return res.status(200).json({ message: 'Status order berhasil diupdate', order });

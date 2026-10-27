@@ -1,26 +1,46 @@
 import { useState, useEffect, useRef } from 'react'
 import { Bell } from 'lucide-react'
+import { io } from 'socket.io-client'
 import api from '../../api/axios'
 import useAuthStore from '../../store/authStore'
 
 export default function NotificationBell() {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef(null)
   const openRef = useRef(false)
+  const socketRef = useRef(null)
 
   useEffect(() => {
-    if (isAuthenticated) return
+    openRef.current = open
+  }, [open])
 
-    fetchNotifications()
+  // Setup Socket.io
+  useEffect(() => {
+    if (!isAuthenticated || !user?.user_id) return
 
-    const interval = setInterval(() => {
-      if (!open) fetchNotifications()
-    }, 30000)
+    const socket = io('http://localhost:5000', { withCredentials: true })
+    socketRef.current = socket
 
-    return () => clearInterval(interval)
+    socket.on('connect', () => {
+      socket.emit('join', user.user_id)
+    })
+
+    socket.on('notification', (notif) => {
+      setNotifications(prev => [notif, ...prev])
+      setUnreadCount(prev => prev + 1)
+    })
+
+    return () => {
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [isAuthenticated, user?.user_id])
+
+  useEffect(() => {
+    if (isAuthenticated) fetchNotifications()
   }, [isAuthenticated])
 
   useEffect(() => {
@@ -65,7 +85,6 @@ export default function NotificationBell() {
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative' }}>
-      {/* Bell Button — sama ukuran dengan Search & Cart */}
       <button
         onClick={handleOpen}
         style={{
@@ -76,16 +95,7 @@ export default function NotificationBell() {
           border: 'none', cursor: 'pointer',
           transition: 'all 0.2s ease',
           position: 'relative', flexShrink: 0
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.color = 'var(--text-primary)'
-          e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.color = open ? 'var(--text-primary)' : 'var(--text-muted)'
-          e.currentTarget.style.background = open ? 'rgba(240,46,41,0.1)' : 'transparent'
-        }}
-      >
+        }}>
         <Bell size={17} />
         {unreadCount > 0 && (
           <span style={{
@@ -94,18 +104,18 @@ export default function NotificationBell() {
             background: 'var(--accent-red)', color: 'white',
             fontSize: '0.55rem', fontWeight: 800,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            lineHeight: 1
+            lineHeight: 1, animation: 'pulse-glow-sm 2s infinite'
           }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 10px)', right: 0,
-          width: 340,
+          /* Fix: pakai min() supaya ga overflow di mobile */
+          width: 'min(340px, calc(100vw - 32px))',
           background: 'rgba(13,13,20,0.98)',
           backdropFilter: 'blur(24px)',
           border: '1px solid var(--border-default)',
@@ -114,7 +124,6 @@ export default function NotificationBell() {
           overflow: 'hidden', zIndex: 200,
           animation: 'fadeInDown 0.2s ease'
         }}>
-          {/* Header */}
           <div style={{
             padding: '14px 18px',
             borderBottom: '1px solid var(--border-default)',
@@ -138,7 +147,6 @@ export default function NotificationBell() {
             )}
           </div>
 
-          {/* List */}
           <div style={{ maxHeight: 380, overflowY: 'auto' }}>
             {notifications.length === 0 ? (
               <div style={{
@@ -154,25 +162,18 @@ export default function NotificationBell() {
               notifications.map((notif, i) => {
                 const config = TYPE_CONFIG[notif.type] || TYPE_CONFIG.system
                 return (
-                  <div key={notif.notification_id} style={{
+                  <div key={notif.notification_id || i} style={{
                     padding: '14px 18px',
-                    borderBottom: i < notifications.length - 1
-                      ? '1px solid var(--border-default)'
-                      : 'none',
-                    background: notif.is_read
-                      ? 'transparent'
-                      : 'rgba(240,46,41,0.04)',
+                    borderBottom: i < notifications.length - 1 ? '1px solid var(--border-default)' : 'none',
+                    background: notif.is_read ? 'transparent' : 'rgba(240,46,41,0.04)',
                     display: 'flex', gap: 12, alignItems: 'flex-start',
                     transition: 'background 0.15s ease'
                   }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
                     onMouseLeave={e => {
-                      e.currentTarget.style.background = notif.is_read
-                        ? 'transparent'
-                        : 'rgba(240,46,41,0.04)'
+                      e.currentTarget.style.background = notif.is_read ? 'transparent' : 'rgba(240,46,41,0.04)'
                     }}
                   >
-                    {/* Icon */}
                     <div style={{
                       width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
                       background: config.color + '18',
@@ -182,38 +183,27 @@ export default function NotificationBell() {
                       {config.icon}
                     </div>
 
-                    {/* Content */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontWeight: 700, fontSize: '0.82rem',
-                        marginBottom: 3, lineHeight: 1.3
-                      }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 3, lineHeight: 1.3 }}>
                         {notif.title}
                       </div>
                       <div style={{
                         fontSize: '0.75rem', color: 'var(--text-muted)',
-                        lineHeight: 1.5, fontWeight: 400,
-                        marginBottom: 4
+                        lineHeight: 1.5, fontWeight: 400, marginBottom: 4
                       }}>
                         {notif.message}
                       </div>
-                      <div style={{
-                        fontSize: '0.65rem', color: 'var(--text-muted)',
-                        fontWeight: 600, letterSpacing: '0.04em'
-                      }}>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em' }}>
                         {new Date(notif.createdAt).toLocaleDateString('id-ID', {
-                          day: 'numeric', month: 'short',
-                          hour: '2-digit', minute: '2-digit'
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                         })}
                       </div>
                     </div>
 
-                    {/* Unread dot */}
                     {!notif.is_read && (
                       <div style={{
                         width: 7, height: 7, borderRadius: '50%',
-                        background: 'var(--accent-red)',
-                        flexShrink: 0, marginTop: 5
+                        background: 'var(--accent-red)', flexShrink: 0, marginTop: 5
                       }} />
                     )}
                   </div>

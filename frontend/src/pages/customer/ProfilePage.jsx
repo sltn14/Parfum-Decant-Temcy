@@ -152,7 +152,26 @@ export default function ProfilePage() {
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 32px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .profile-main-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .profile-form-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .profile-aroma-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .profile-outer-pad {
+            padding: 24px 16px !important;
+          }
+          .profile-content-pad {
+            padding: 20px !important;
+          }
+        }
+      `}</style>
+      <div className="profile-outer-pad" style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 32px' }}>
 
         <div style={{ marginBottom: 40 }}>
           <div style={{
@@ -166,7 +185,7 @@ export default function ProfilePage() {
           }}>PROFIL SAYA</h1>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24 }}>
+        <div className="profile-main-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24 }}>
 
           {/* Sidebar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -277,7 +296,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Content */}
-          <div style={{
+          <div className="profile-content-pad" style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
             borderRadius: 'var(--radius-lg)', padding: 32
@@ -293,7 +312,7 @@ export default function ProfilePage() {
                   paddingBottom: 14, borderBottom: '1px solid var(--border-default)'
                 }}>INFORMASI PRIBADI</div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                <div className="profile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                   <div>
                     <label style={labelStyle}>Nama Lengkap</label>
                     <input type="text" value={profile.full_name}
@@ -324,7 +343,7 @@ export default function ProfilePage() {
                   </p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                <div className="profile-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                   <div>
                     <label style={labelStyle}>No. HP</label>
                     <input type="tel" value={profile.phone}
@@ -473,7 +492,7 @@ export default function ProfilePage() {
                 {/* Aroma */}
                 <div style={{ marginBottom: 22 }}>
                   <label style={labelStyle}>Aroma Favorit</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  <div className="profile-aroma-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                     {AROMA_OPTIONS.map(({ value, label }) => (
                       <button key={value} type="button"
                         onClick={() => setProfile({ ...profile, pref_aroma: value })}

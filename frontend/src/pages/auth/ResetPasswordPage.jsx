@@ -18,8 +18,8 @@ export default function ResetPasswordPage() {
       toast.error('Password tidak cocok')
       return
     }
-    if (form.new_password.length < 6) {
-      toast.error('Password minimal 6 karakter')
+    if (form.new_password.length < 8) {
+      toast.error('Password minimal 8 karakter')
       return
     }
     setLoading(true)

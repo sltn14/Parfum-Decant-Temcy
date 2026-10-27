@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, Search, Edit, Trash2, X, Save, Upload } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import ConfirmModal from '../../components/common/ConfirmModal'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
@@ -30,6 +31,8 @@ export default function AdminProducts() {
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const imgRef = useRef()
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => { fetchProducts() }, [page, search])
 
@@ -117,13 +120,19 @@ export default function AdminProducts() {
     } finally { setSaving(false) }
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Yakin hapus produk ini?')) return
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await api.delete(`/products/${id}`)
+      await api.delete(`/products/${deleteTarget}`)
       toast.success('Produk berhasil dihapus!')
+      setDeleteTarget(null)
       fetchProducts()
-    } catch { toast.error('Gagal menghapus') }
+    } catch {
+      toast.error('Gagal menghapus')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const inputStyle = {
@@ -149,7 +158,34 @@ export default function AdminProducts() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .products-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 16px !important;
+          }
+          .products-search-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .products-search-row > div:first-child {
+            max-width: 100% !important;
+          }
+          .products-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .products-table-wrap table {
+            min-width: 700px;
+          }
+          .products-modal-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
+      <div className="products-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <div>
           <div style={{
             fontSize: '0.62rem', fontWeight: 800,
@@ -177,7 +213,7 @@ export default function AdminProducts() {
       </div>
 
       {/* Search + Total */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="products-search-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           background: 'var(--bg-card)',
@@ -211,7 +247,7 @@ export default function AdminProducts() {
       </div>
 
       {/* Table */}
-      <div style={{
+      <div className="products-table-wrap" style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-lg)', overflow: 'hidden'
@@ -318,7 +354,7 @@ export default function AdminProducts() {
                       }}>
                       <Edit size={11} /> EDIT
                     </button>
-                    <button onClick={() => handleDelete(product.product_id)}
+                    <button onClick={() => setDeleteTarget(product.product_id)}
                       style={{
                         padding: '5px 12px',
                         background: 'rgba(239,68,68,0.08)',
@@ -458,7 +494,7 @@ export default function AdminProducts() {
               </div>
 
               {/* Form fields grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="products-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 {[
                   { label: 'Brand', name: 'brand', required: true },
                   { label: 'Nama Produk', name: 'product_name', required: true },
@@ -557,6 +593,15 @@ export default function AdminProducts() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        show={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={deleting}
+        title="HAPUS PRODUK?"
+        message="Produk ini akan dinonaktifkan dan tidak akan tampil di katalog. Tindakan ini bisa diurungkan melalui edit produk."
+        confirmLabel="YA, HAPUS"
+      />
     </div>
   )
 }

@@ -8,6 +8,8 @@ import toast from 'react-hot-toast'
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
 
+const API_URL = 'http://localhost:5000'
+
 export default function CartPage() {
   const navigate = useNavigate()
   const { setCartCount } = useCartStore()
@@ -30,17 +32,32 @@ export default function CartPage() {
 
   const handleUpdateQuantity = async (itemId, quantity) => {
     if (quantity <= 0) { handleRemove(itemId); return }
+
+    const cartItem = cart?.items?.find(i => i.cart_item_id === itemId)
+    if (cartItem?.product) {
+      const stockKey = `stock_${cartItem.size_ml}ml`
+      const availableStock = cartItem.product[stockKey] ?? 0
+      if (quantity > availableStock) {
+        toast.error(`Stok tidak mencukupi. Stok tersedia: ${availableStock} pcs`)
+        return
+      }
+    }
+
+    const prevCart = cart
+
     setCart(prev => ({
       ...prev,
-      items: prev.items.map(item =>
-        item.cart_item_id === itemId ? { ...item, quantity } : item
+      items: prev.items.map(i =>
+        i.cart_item_id === itemId ? { ...i, quantity } : i
       )
     }))
+
     try {
       await api.put(`/cart/${itemId}`, { quantity })
-    } catch {
-      toast.error('Gagal update keranjang')
-      fetchCart()
+    } catch (err) {
+      setCart(prevCart)
+      const msg = err?.response?.data?.message || 'Gagal update keranjang'
+      toast.error(msg)
     }
   }
 
@@ -81,9 +98,39 @@ export default function CartPage() {
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .cart-main-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .cart-summary {
+            position: static !important;
+          }
+          .cart-outer-pad {
+            padding: 24px 16px !important;
+          }
+          .cart-item-row {
+            flex-wrap: wrap !important;
+            gap: 12px !important;
+          }
+          .cart-item-info {
+            flex: 1 1 calc(100% - 88px) !important;
+          }
+          .cart-item-controls {
+            order: 3;
+          }
+          .cart-item-subtotal {
+            order: 4;
+            min-width: auto !important;
+            flex: 1 !important;
+          }
+          .cart-item-delete {
+            order: 2;
+          }
+        }
+      `}</style>
+      <div className="cart-outer-pad" style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
 
-        {/* Header */}
         <div style={{ marginBottom: 40 }}>
           <div style={{
             fontSize: '0.65rem', fontWeight: 800,
@@ -92,24 +139,19 @@ export default function CartPage() {
           }}>Keranjang</div>
           <h1 style={{
             fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
-            fontWeight: 900, letterSpacing: '-0.03em',
-            textTransform: 'uppercase'
+            fontWeight: 900, letterSpacing: '-0.03em', textTransform: 'uppercase'
           }}>
             KERANJANG BELANJA
             {totalItems > 0 && (
-              <span style={{
-                marginLeft: 16, fontSize: '1rem',
-                fontWeight: 700, color: 'var(--text-muted)'
-              }}>({totalItems} item)</span>
+              <span style={{ marginLeft: 16, fontSize: '1rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                ({totalItems} item)
+              </span>
             )}
           </h1>
         </div>
 
         {totalItems === 0 ? (
-          <div style={{
-            textAlign: 'center', padding: '100px 0',
-            animation: 'fadeInUp 0.5s ease'
-          }}>
+          <div style={{ textAlign: 'center', padding: '100px 0', animation: 'fadeInUp 0.5s ease' }}>
             <div style={{
               width: 80, height: 80, borderRadius: '50%',
               background: 'var(--bg-card)',
@@ -119,13 +161,9 @@ export default function CartPage() {
             }}>🛒</div>
             <h3 style={{
               fontSize: '1.2rem', fontWeight: 900,
-              textTransform: 'uppercase', letterSpacing: '-0.02em',
-              marginBottom: 10
+              textTransform: 'uppercase', letterSpacing: '-0.02em', marginBottom: 10
             }}>KERANJANG KOSONG</h3>
-            <p style={{
-              color: 'var(--text-muted)', fontSize: '0.85rem',
-              marginBottom: 32, fontWeight: 400
-            }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 32, fontWeight: 400 }}>
               Belum ada produk di keranjang kamu
             </p>
             <Link to="/catalog" style={{
@@ -134,15 +172,14 @@ export default function CartPage() {
               background: 'var(--accent-red)', color: 'white',
               borderRadius: 'var(--radius-sm)', fontWeight: 800,
               fontSize: '0.78rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-              boxShadow: '0 4px 20px rgba(240,46,41,0.35)'
+              boxShadow: '0 4px 20px rgba(240,46,41,0.35)', textDecoration: 'none'
             }}>
               <ShoppingBag size={16} /> MULAI BELANJA
             </Link>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 32 }}>
+          <div className="cart-main-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 32 }}>
 
-            {/* Items */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {cart.items.map((item, i) => (
                 <div key={item.cart_item_id} style={{
@@ -154,40 +191,58 @@ export default function CartPage() {
                   animation: `fadeInUp 0.4s ease ${i * 0.06}s both`,
                   transition: 'border-color 0.2s ease'
                 }}
+                  className="cart-item-row"
                   onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-hover)'}
                   onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-default)'}
                 >
-                  {/* Image */}
-                  <div style={{
-                    width: 72, height: 72, flexShrink: 0,
-                    background: 'var(--bg-elevated)',
-                    borderRadius: 'var(--radius-md)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '1.8rem', border: '1px solid var(--border-default)'
-                  }}>🧴</div>
+                  <Link to={`/product/${item.product_id}`} style={{ flexShrink: 0, textDecoration: 'none' }}>
+                    <div style={{
+                      width: 72, height: 72,
+                      background: 'var(--bg-elevated)',
+                      borderRadius: 'var(--radius-md)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: '1px solid var(--border-default)',
+                      overflow: 'hidden', cursor: 'pointer',
+                      transition: 'transform 0.2s ease'
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                      onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                    >
+                      {item.product?.image_filename && item.product.image_filename !== 'default.png' ? (
+                        <img
+                          src={`${API_URL}/uploads/products/${item.product.image_filename}`}
+                          alt={item.product?.product_name}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: '1.8rem' }}>🧴</span>
+                      )}
+                    </div>
+                  </Link>
 
-                  {/* Info */}
-                  <div style={{ flex: 1 }}>
+                  <div className="cart-item-info" style={{ flex: 1 }}>
                     <div style={{
                       fontSize: '0.62rem', fontWeight: 800,
                       letterSpacing: '0.12em', textTransform: 'uppercase',
                       color: 'var(--accent-red)', marginBottom: 4
                     }}>{item.product?.brand}</div>
-                    <div style={{
-                      fontWeight: 700, fontSize: '0.9rem',
-                      marginBottom: 4, letterSpacing: '-0.01em'
-                    }}>{item.product?.product_name}</div>
-                    <div style={{
-                      fontSize: '0.75rem', color: 'var(--text-muted)',
-                      fontWeight: 500
-                    }}>
+                    <Link to={`/product/${item.product_id}`} style={{ textDecoration: 'none' }}>
+                      <div style={{
+                        fontWeight: 700, fontSize: '0.9rem',
+                        marginBottom: 4, letterSpacing: '-0.01em',
+                        color: 'var(--text-primary)', transition: 'color 0.2s ease'
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                      >{item.product?.product_name}</div>
+                    </Link>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                       {item.size_ml}ml · {formatRupiah(item.price)}/botol
                     </div>
                   </div>
 
-                  {/* Quantity */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 0,
+                  <div className="cart-item-controls" style={{
+                    display: 'flex', alignItems: 'center',
                     border: '1px solid var(--border-default)',
                     borderRadius: 'var(--radius-sm)', overflow: 'hidden'
                   }}>
@@ -239,8 +294,7 @@ export default function CartPage() {
                     </button>
                   </div>
 
-                  {/* Subtotal */}
-                  <div style={{ minWidth: 110, textAlign: 'right' }}>
+                  <div className="cart-item-subtotal" style={{ minWidth: 110, textAlign: 'right' }}>
                     <div style={{
                       fontSize: '0.62rem', fontWeight: 700,
                       letterSpacing: '0.08em', textTransform: 'uppercase',
@@ -251,8 +305,7 @@ export default function CartPage() {
                     </div>
                   </div>
 
-                  {/* Remove */}
-                  <button onClick={() => handleRemove(item.cart_item_id)}
+                  <button className="cart-item-delete" onClick={() => handleRemove(item.cart_item_id)}
                     style={{
                       width: 34, height: 34, borderRadius: 'var(--radius-sm)',
                       background: 'rgba(239,68,68,0.08)',
@@ -274,7 +327,6 @@ export default function CartPage() {
                 </div>
               ))}
 
-              {/* Continue Shopping */}
               <Link to="/catalog" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 padding: '12px 0', marginTop: 8,
@@ -290,8 +342,7 @@ export default function CartPage() {
               </Link>
             </div>
 
-            {/* Summary */}
-            <div style={{
+            <div className="cart-summary" style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border-default)',
               borderRadius: 'var(--radius-lg)', padding: 28,
@@ -304,16 +355,16 @@ export default function CartPage() {
                 color: 'var(--text-muted)', marginBottom: 24
               }}>RINGKASAN PESANAN</h2>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
                 {cart.items.map(item => (
                   <div key={item.cart_item_id} style={{
                     display: 'flex', justifyContent: 'space-between',
-                    fontSize: '0.82rem'
+                    fontSize: '0.82rem', gap: 10
                   }}>
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 500, flex: 1 }}>
                       {item.product?.product_name} ({item.size_ml}ml) ×{item.quantity}
                     </span>
-                    <span style={{ fontWeight: 700 }}>
+                    <span style={{ fontWeight: 700, flexShrink: 0 }}>
                       {formatRupiah(item.price * item.quantity)}
                     </span>
                   </div>
@@ -343,10 +394,9 @@ export default function CartPage() {
                     {formatRupiah(total)}
                   </div>
                 </div>
-                <div style={{
-                  fontSize: '0.75rem', color: 'var(--text-muted)',
-                  fontWeight: 500
-                }}>{totalItems} produk</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                  {totalItems} produk
+                </div>
               </div>
 
               <button onClick={() => navigate('/checkout')}

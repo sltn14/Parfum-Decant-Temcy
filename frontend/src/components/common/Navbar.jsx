@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Search, ShoppingCart, User, LogOut, ChevronDown, LogIn, X, Heart, MapPin, Clock } from 'lucide-react'
+import { Search, ShoppingCart, User, LogOut, ChevronDown, LogIn, X, Heart, MapPin, Clock, Menu } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import useCartStore from '../../store/cartStore'
 import useSearchStore from '../../store/searchStore'
@@ -15,6 +15,7 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [scrolled, setScrolled] = useState(false)
   const [searchHistory, setSearchHistory] = useState(() => {
@@ -26,6 +27,12 @@ export default function Navbar() {
   const searchRef = useRef(null)
 
   const isActive = (path) => location.pathname === path
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false)
+    setDropdownOpen(false)
+  }, [location.pathname])
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -42,30 +49,35 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Lock body scroll when mobile menu open
+  useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileMenuOpen])
+
   const handleLogout = async () => {
-    try { await api.post('/auth/logout') } catch {}
-    clearAuth()
-    localStorage.removeItem('auth-storage')
+    sessionStorage.setItem('logging-out', 'true')
     setDropdownOpen(false)
+    setMobileMenuOpen(false)
+    clearAuth()
+    try { await api.post('/auth/logout') } catch {}
+    sessionStorage.removeItem('logging-out')
     window.location.href = '/'
   }
 
   const handleSearch = (e) => {
     e.preventDefault()
-    if (search.trim()) {
-      doSearch(search.trim())
-    }
+    if (search.trim()) doSearch(search.trim())
   }
 
   const doSearch = (query) => {
-    // Simpan ke history (max 6, tanpa duplikat)
     const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 6)
     setSearchHistory(newHistory)
     localStorage.setItem('search-history', JSON.stringify(newHistory))
-
     setQuery(query)
     navigate(`/catalog?search=${encodeURIComponent(query)}`)
     setSearchOpen(false)
+    setMobileMenuOpen(false)
     setSearch('')
   }
 
@@ -98,6 +110,19 @@ export default function Navbar() {
 
   return (
     <>
+      <style>{`
+        @media (max-width: 768px) {
+          .navbar-links { display: none !important; }
+          .navbar-actions-desktop { display: none !important; }
+          .navbar-mobile-right { display: flex !important; }
+          .navbar-inner { padding: 0 16px !important; gap: 0 !important; }
+        }
+        @media (min-width: 769px) {
+          .navbar-mobile-right { display: none !important; }
+          .navbar-hamburger { display: none !important; }
+        }
+      `}</style>
+
       <nav style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
         height: 'var(--navbar-height)',
@@ -110,7 +135,7 @@ export default function Navbar() {
         transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
         boxShadow: scrolled ? '0 4px 32px rgba(0,0,0,0.5)' : 'none'
       }}>
-        <div style={{
+        <div className="navbar-inner" style={{
           maxWidth: 1400, margin: '0 auto', padding: '0 32px',
           height: '100%', display: 'flex', alignItems: 'center', gap: 32
         }}>
@@ -148,8 +173,8 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Nav Links */}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {/* Nav Links — desktop only */}
+          <div className="navbar-links" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {[
               { to: '/', label: 'Beranda' },
               { to: '/catalog', label: 'Katalog' },
@@ -175,9 +200,8 @@ export default function Navbar() {
 
           <div style={{ flex: 1 }} />
 
-          {/* Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-
+          {/* Actions — desktop only */}
+          <div className="navbar-actions-desktop" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {/* Search */}
             <button
               onClick={() => setSearchOpen(prev => !prev)}
@@ -188,22 +212,12 @@ export default function Navbar() {
                 background: searchOpen ? 'rgba(240,46,41,0.1)' : 'transparent',
                 border: 'none', cursor: 'pointer', transition: 'all 0.2s ease',
                 flexShrink: 0
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = 'var(--text-primary)'
-                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = searchOpen ? 'var(--text-primary)' : 'var(--text-muted)'
-                e.currentTarget.style.background = searchOpen ? 'rgba(240,46,41,0.1)' : 'transparent'
               }}>
               <Search size={17} />
             </button>
 
-            {/* Notification */}
             <NotificationBell />
 
-            {/* Favorites — hanya kalau login */}
             {isAuthenticated && (
               <Link to="/favorites" style={{
                 width: 38, height: 38, borderRadius: 'var(--radius-full)',
@@ -211,35 +225,18 @@ export default function Navbar() {
                 color: 'var(--text-muted)', border: 'none',
                 transition: 'all 0.2s ease', textDecoration: 'none',
                 background: 'transparent', flexShrink: 0
-              }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.color = 'var(--text-primary)'
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.color = 'var(--text-muted)'
-                  e.currentTarget.style.background = 'transparent'
-                }}>
+              }}>
                 <Heart size={17} />
               </Link>
             )}
 
-            {/* Cart */}
             <Link to="/cart" style={{
               width: 38, height: 38, borderRadius: 'var(--radius-full)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--text-muted)', border: 'none',
               transition: 'all 0.2s ease', textDecoration: 'none',
               position: 'relative', flexShrink: 0, background: 'transparent'
-            }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = 'var(--text-primary)'
-                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = 'var(--text-muted)'
-                e.currentTarget.style.background = 'transparent'
-              }}>
+            }}>
               <ShoppingCart size={17} />
               {cartCount > 0 && (
                 <span style={{
@@ -255,7 +252,6 @@ export default function Navbar() {
               )}
             </Link>
 
-            {/* Auth */}
             {isAuthenticated ? (
               <div ref={dropdownRef} style={{ position: 'relative' }}>
                 <button
@@ -270,18 +266,14 @@ export default function Navbar() {
                   }}>
                   {getAvatarSrc() ? (
                     <img src={getAvatarSrc()} alt="Avatar"
-                      style={{
-                        width: 28, height: 28, borderRadius: '50%',
-                        objectFit: 'cover', border: '1px solid var(--accent-red)'
-                      }}
+                      style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--accent-red)' }}
                     />
                   ) : (
                     <div style={{
                       width: 28, height: 28, borderRadius: '50%',
                       background: 'linear-gradient(135deg, var(--accent-red), #A2120E)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '0.68rem', fontWeight: 800, color: 'white',
-                      letterSpacing: '0.02em'
+                      fontSize: '0.68rem', fontWeight: 800, color: 'white'
                     }}>
                       {getInitials(user?.full_name)}
                     </div>
@@ -304,50 +296,34 @@ export default function Navbar() {
                     boxShadow: '0 16px 48px rgba(0,0,0,0.7)',
                     animation: 'fadeInDown 0.2s ease'
                   }}>
-                    {/* User Info */}
                     <div style={{
                       padding: '14px 18px',
                       borderBottom: '1px solid var(--border-default)',
                       background: 'linear-gradient(135deg, rgba(240,46,41,0.06), transparent)'
                     }}>
-                      <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 2 }}>
-                        {user?.full_name}
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>
-                        {user?.email}
-                      </div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 2 }}>{user?.full_name}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{user?.email}</div>
                     </div>
-
-                    {/* Menu Items */}
                     {[
                       { to: '/profile', icon: <User size={13} />, label: 'Profil Saya' },
                       { to: '/orders', icon: <ShoppingCart size={13} />, label: 'Pesanan Saya' },
                       { to: '/favorites', icon: <Heart size={13} />, label: 'Favorit Saya' },
                       { to: '/addresses', icon: <MapPin size={13} />, label: 'Alamat Saya' }
                     ].map(({ to, icon, label }) => (
-                      <Link key={to} to={to}
-                        onClick={() => setDropdownOpen(false)}
+                      <Link key={to} to={to} onClick={() => setDropdownOpen(false)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 10,
                           padding: '10px 18px', fontSize: '0.82rem',
                           color: 'var(--text-secondary)', fontWeight: 600,
                           transition: '150ms ease', textDecoration: 'none'
                         }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.color = 'var(--text-primary)'
-                          e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.color = 'var(--text-secondary)'
-                          e.currentTarget.style.background = 'transparent'
-                        }}>
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.background = 'transparent' }}>
                         {icon} {label}
                       </Link>
                     ))}
-
                     {user?.role === 'admin' && (
-                      <Link to="/admin"
-                        onClick={() => setDropdownOpen(false)}
+                      <Link to="/admin" onClick={() => setDropdownOpen(false)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 10,
                           padding: '10px 18px', fontSize: '0.82rem',
@@ -355,12 +331,10 @@ export default function Navbar() {
                           textDecoration: 'none', transition: '150ms ease'
                         }}
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(240,46,41,0.06)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         Admin Panel
                       </Link>
                     )}
-
                     <div style={{ borderTop: '1px solid var(--border-default)' }}>
                       <button onClick={handleLogout}
                         style={{
@@ -369,9 +343,7 @@ export default function Navbar() {
                           fontSize: '0.82rem', color: '#f87171',
                           fontWeight: 600, cursor: 'pointer',
                           transition: '150ms ease', background: 'none', border: 'none'
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.06)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        }}>
                         <LogOut size={13} /> Keluar
                       </button>
                     </div>
@@ -389,33 +361,228 @@ export default function Navbar() {
                 textDecoration: 'none',
                 boxShadow: '0 4px 14px rgba(240,46,41,0.3)',
                 transition: 'all 0.3s ease'
-              }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-1px)'
-                  e.currentTarget.style.boxShadow = '0 8px 22px rgba(240,46,41,0.4)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)'
-                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(240,46,41,0.3)'
-                }}>
+              }}>
                 <LogIn size={14} /> MASUK
               </Link>
             )}
           </div>
+
+          {/* Mobile right icons */}
+          <div className="navbar-mobile-right" style={{
+            display: 'none', alignItems: 'center', gap: 4, marginLeft: 'auto'
+          }}>
+            {/* Search */}
+            <button onClick={() => { setSearchOpen(p => !p); setMobileMenuOpen(false) }}
+              style={{
+                width: 38, height: 38, borderRadius: 'var(--radius-full)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--text-muted)', background: 'transparent',
+                border: 'none', cursor: 'pointer'
+              }}>
+              <Search size={18} />
+            </button>
+
+            {/* Cart */}
+            <Link to="/cart" style={{
+              width: 38, height: 38, borderRadius: 'var(--radius-full)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-muted)', textDecoration: 'none',
+              position: 'relative', background: 'transparent'
+            }}>
+              <ShoppingCart size={18} />
+              {cartCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: 5, right: 5,
+                  width: 15, height: 15, borderRadius: '50%',
+                  background: 'var(--accent-red)', color: 'white',
+                  fontSize: '0.55rem', fontWeight: 800,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </Link>
+
+            {/* Hamburger */}
+            <button
+              className="navbar-hamburger"
+              onClick={() => { setMobileMenuOpen(p => !p); setSearchOpen(false) }}
+              style={{
+                width: 38, height: 38, borderRadius: 'var(--radius-full)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: mobileMenuOpen ? 'var(--accent-red)' : 'var(--text-muted)',
+                background: mobileMenuOpen ? 'rgba(240,46,41,0.1)' : 'transparent',
+                border: mobileMenuOpen ? '1px solid rgba(240,46,41,0.2)' : '1px solid transparent',
+                cursor: 'pointer', transition: 'all 0.2s ease'
+              }}>
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
         </div>
       </nav>
+
+      {/* Mobile Menu Drawer */}
+      {mobileMenuOpen && (
+        <div style={{
+          position: 'fixed', top: 'var(--navbar-height)', left: 0, right: 0, bottom: 0,
+          zIndex: 99, background: 'rgba(6,6,10,0.98)',
+          backdropFilter: 'blur(24px)',
+          overflowY: 'auto',
+          animation: 'fadeInDown 0.2s ease',
+          display: 'none'
+        }}
+          className="mobile-menu-drawer"
+        >
+          <style>{`
+            @media (max-width: 768px) {
+              .mobile-menu-drawer { display: block !important; }
+            }
+          `}</style>
+
+          <div style={{ padding: '24px 20px' }}>
+            {/* User info kalau login */}
+            {isAuthenticated && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '16px', marginBottom: 24,
+                background: 'rgba(240,46,41,0.06)',
+                border: '1px solid rgba(240,46,41,0.15)',
+                borderRadius: 'var(--radius-lg)'
+              }}>
+                {getAvatarSrc() ? (
+                  <img src={getAvatarSrc()} alt="Avatar"
+                    style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-red)', flexShrink: 0 }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                    background: 'linear-gradient(135deg, var(--accent-red), #A2120E)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '1rem', fontWeight: 800, color: 'white'
+                  }}>
+                    {getInitials(user?.full_name)}
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 2 }}>{user?.full_name}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{user?.email}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Nav Links */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{
+                fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.2em',
+                color: 'var(--text-muted)', marginBottom: 8, paddingLeft: 4
+              }}>MENU</div>
+              {[
+                { to: '/', label: 'Beranda' },
+                { to: '/catalog', label: 'Katalog' },
+                { to: '/chatbot', label: 'Konsultasi' }
+              ].map(({ to, label }) => (
+                <Link key={to} to={to}
+                  onClick={() => setMobileMenuOpen(false)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 16px', marginBottom: 4,
+                    background: isActive(to) ? 'rgba(240,46,41,0.08)' : 'transparent',
+                    border: `1px solid ${isActive(to) ? 'rgba(240,46,41,0.2)' : 'transparent'}`,
+                    borderRadius: 'var(--radius-md)',
+                    color: isActive(to) ? 'var(--accent-red)' : 'var(--text-primary)',
+                    fontSize: '1rem', fontWeight: 700, textDecoration: 'none',
+                    transition: 'all 0.15s ease'
+                  }}>
+                  {label}
+                  {isActive(to) && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-red)' }} />}
+                </Link>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: 'var(--border-default)', margin: '16px 0' }} />
+
+            {/* Account Links */}
+            {isAuthenticated ? (
+              <div>
+                <div style={{
+                  fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.2em',
+                  color: 'var(--text-muted)', marginBottom: 8, paddingLeft: 4
+                }}>AKUN</div>
+                {[
+                  { to: '/profile', icon: <User size={16} />, label: 'Profil Saya' },
+                  { to: '/orders', icon: <ShoppingCart size={16} />, label: 'Pesanan Saya' },
+                  { to: '/favorites', icon: <Heart size={16} />, label: 'Favorit Saya' },
+                  { to: '/addresses', icon: <MapPin size={16} />, label: 'Alamat Saya' }
+                ].map(({ to, icon, label }) => (
+                  <Link key={to} to={to} onClick={() => setMobileMenuOpen(false)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '13px 16px', marginBottom: 4,
+                      color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600,
+                      textDecoration: 'none', borderRadius: 'var(--radius-md)',
+                      transition: 'all 0.15s ease'
+                    }}>
+                    <span style={{ color: 'var(--text-muted)' }}>{icon}</span>
+                    {label}
+                  </Link>
+                ))}
+
+                {user?.role === 'admin' && (
+                  <Link to="/admin" onClick={() => setMobileMenuOpen(false)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '13px 16px', marginBottom: 4,
+                      color: 'var(--accent-red)', fontSize: '0.9rem', fontWeight: 700,
+                      textDecoration: 'none', borderRadius: 'var(--radius-md)',
+                      background: 'rgba(240,46,41,0.06)'
+                    }}>
+                    Admin Panel
+                  </Link>
+                )}
+
+                <div style={{ height: 1, background: 'var(--border-default)', margin: '12px 0' }} />
+
+                <button onClick={handleLogout}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '13px 16px', width: '100%',
+                    color: '#f87171', fontSize: '0.9rem', fontWeight: 600,
+                    cursor: 'pointer', background: 'none', border: 'none',
+                    borderRadius: 'var(--radius-md)', textAlign: 'left'
+                  }}>
+                  <LogOut size={16} /> Keluar
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  padding: '14px',
+                  background: 'linear-gradient(135deg, var(--accent-red), #e11d18)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '0.85rem', fontWeight: 800,
+                  letterSpacing: '0.06em', color: 'white',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 14px rgba(240,46,41,0.3)'
+                }}>
+                <LogIn size={16} /> MASUK
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Search Overlay */}
       {searchOpen && (
         <div ref={searchRef} style={{
           position: 'fixed', top: 'var(--navbar-height)', left: 0, right: 0,
-          zIndex: 99, padding: '20px 32px 24px',
+          zIndex: 99, padding: '20px 20px 24px',
           background: 'rgba(6,6,10,0.97)',
           backdropFilter: 'blur(24px)',
           borderBottom: '1px solid var(--border-default)',
           animation: 'fadeInDown 0.2s ease'
         }}>
-          {/* Search Input */}
           <form onSubmit={handleSearch} style={{
             maxWidth: 600, margin: '0 auto',
             display: 'flex', alignItems: 'center', gap: 14
@@ -434,10 +601,7 @@ export default function Navbar() {
             />
             {search && (
               <button type="button" onClick={() => setSearch('')}
-                style={{
-                  color: 'var(--text-muted)', cursor: 'pointer',
-                  flexShrink: 0, background: 'none', border: 'none'
-                }}>
+                style={{ color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0, background: 'none', border: 'none' }}>
                 <X size={16} />
               </button>
             )}
@@ -450,69 +614,25 @@ export default function Navbar() {
             }}>CARI</button>
           </form>
 
-          {/* Search History */}
           {!search && searchHistory.length > 0 && (
             <div style={{ maxWidth: 600, margin: '18px auto 0' }}>
-              <div style={{
-                display: 'flex', justifyContent: 'space-between',
-                alignItems: 'center', marginBottom: 10
-              }}>
-                <span style={{
-                  fontSize: '0.6rem', fontWeight: 800,
-                  letterSpacing: '0.18em', textTransform: 'uppercase',
-                  color: 'var(--text-muted)'
-                }}>RIWAYAT PENCARIAN</span>
-                <button onClick={clearHistory}
-                  style={{
-                    fontSize: '0.7rem', color: 'var(--accent-red)',
-                    fontWeight: 700, cursor: 'pointer',
-                    background: 'none', border: 'none',
-                    letterSpacing: '0.04em'
-                  }}>Hapus Semua</button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>RIWAYAT PENCARIAN</span>
+                <button onClick={clearHistory} style={{ fontSize: '0.7rem', color: 'var(--accent-red)', fontWeight: 700, cursor: 'pointer', background: 'none', border: 'none' }}>Hapus Semua</button>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {searchHistory.map((h, i) => (
                   <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 0,
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-xs)',
-                    overflow: 'hidden'
+                    display: 'flex', alignItems: 'center',
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-xs)', overflow: 'hidden'
                   }}>
-                    <button
-                      onClick={() => doSearch(h)}
-                      style={{
-                        padding: '6px 10px 6px 12px',
-                        color: 'var(--text-muted)', fontSize: '0.78rem',
-                        fontWeight: 500, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: 'none', border: 'none',
-                        transition: 'color 0.15s ease'
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                    >
-                      <Clock size={11} style={{ flexShrink: 0 }} />
-                      {h}
+                    <button onClick={() => doSearch(h)}
+                      style={{ padding: '6px 10px 6px 12px', color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none' }}>
+                      <Clock size={11} style={{ flexShrink: 0 }} /> {h}
                     </button>
-                    <button
-                      onClick={(e) => removeHistoryItem(h, e)}
-                      style={{
-                        padding: '6px 8px',
-                        color: 'var(--text-muted)', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center',
-                        background: 'none', border: 'none',
-                        borderLeft: '1px solid var(--border-default)',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.color = '#ef4444'
-                        e.currentTarget.style.background = 'rgba(239,68,68,0.08)'
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.color = 'var(--text-muted)'
-                        e.currentTarget.style.background = 'none'
-                      }}>
+                    <button onClick={(e) => removeHistoryItem(h, e)}
+                      style={{ padding: '6px 8px', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', background: 'none', border: 'none', borderLeft: '1px solid var(--border-default)' }}>
                       <X size={10} />
                     </button>
                   </div>
@@ -521,34 +641,13 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* Quick suggestions kalau search history kosong */}
           {!search && searchHistory.length === 0 && (
             <div style={{ maxWidth: 600, margin: '18px auto 0' }}>
-              <div style={{
-                fontSize: '0.6rem', fontWeight: 800,
-                letterSpacing: '0.18em', textTransform: 'uppercase',
-                color: 'var(--text-muted)', marginBottom: 10
-              }}>POPULER</div>
+              <div style={{ fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>POPULER</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {['Woody', 'Floral', 'Citrus', 'Oud', 'Fresh', 'Vanilla'].map(s => (
                   <button key={s} onClick={() => doSearch(s)}
-                    style={{
-                      padding: '6px 14px',
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: 'var(--radius-xs)',
-                      color: 'var(--text-muted)', fontSize: '0.78rem',
-                      fontWeight: 500, cursor: 'pointer',
-                      transition: 'all 0.15s ease', fontFamily: 'var(--font-sans)'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = 'var(--accent-red)'
-                      e.currentTarget.style.color = 'var(--accent-red)'
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = 'var(--border-default)'
-                      e.currentTarget.style.color = 'var(--text-muted)'
-                    }}>
+                    style={{ padding: '6px 14px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-xs)', color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                     {s}
                   </button>
                 ))}

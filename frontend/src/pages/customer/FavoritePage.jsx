@@ -64,7 +64,13 @@ export default function FavoritePage() {
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .fav-outer-pad { padding: 24px 16px !important; }
+          .fav-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+      `}</style>
+      <div className="fav-outer-pad" style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
 
         <div style={{ marginBottom: 40 }}>
           <div style={{
@@ -117,7 +123,7 @@ export default function FavoritePage() {
             </button>
           </div>
         ) : (
-          <div style={{
+          <div className="fav-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
             gap: 20

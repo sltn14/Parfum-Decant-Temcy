@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, Home, ShoppingBag } from 'lucide-react'
+import { ArrowRight, Home, ShoppingBag, Loader2 } from 'lucide-react'
 import api from '../../api/axios'
+import toast from 'react-hot-toast'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
@@ -11,38 +12,103 @@ export default function SuccessPage() {
   const [searchParams] = useSearchParams()
   const orderId = searchParams.get('order_id')
   const [order, setOrder] = useState(null)
-  const [countdown, setCountdown] = useState(10)
   const [visible, setVisible] = useState(false)
+  const [paymentLoading, setPaymentLoading] = useState(false)
+  const [snapToken, setSnapToken] = useState(null)
+  const paymentTriggered = useRef(false)
 
   useEffect(() => {
     setTimeout(() => setVisible(true), 100)
     if (orderId) fetchOrder()
-
-    const timer = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) { clearInterval(timer); navigate('/orders'); return 0 }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => clearInterval(timer)
   }, [])
 
   const fetchOrder = async () => {
     try {
       const res = await api.get(`/orders/my-orders/${orderId}`)
-      setOrder(res.data.order)
+      const orderData = res.data.order
+      setOrder(orderData)
+
+      if (orderData.status === 'pending' && !paymentTriggered.current) {
+        paymentTriggered.current = true
+        triggerPayment(orderData.order_id)
+      }
     } catch {}
   }
 
+  const triggerPayment = async (id) => {
+    setPaymentLoading(true)
+    try {
+      const res = await api.post(`/orders/my-orders/${id}/create-payment`)
+      const token = res.data.snap_token
+
+      if (!token) {
+        toast.error('Gagal mendapatkan token pembayaran')
+        return
+      }
+
+      setSnapToken(token)
+
+      if (window.snap) {
+        openSnap(token)
+      } else {
+        const script = document.createElement('script')
+        script.src = 'https://app.sandbox.midtrans.com/snap/snap.js'
+        script.setAttribute('data-client-key', import.meta.env.VITE_MIDTRANS_CLIENT_KEY || '')
+        script.onload = () => openSnap(token)
+        document.head.appendChild(script)
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Gagal memuat pembayaran'
+      toast.error(msg)
+    } finally {
+      setPaymentLoading(false)
+    }
+  }
+
+  const openSnap = (token) => {
+    window.snap.pay(token, {
+      onSuccess: () => {
+        toast.success('Pembayaran berhasil!')
+        navigate(`/orders/${orderId}`)
+      },
+      onPending: () => {
+        toast('Menunggu pembayaran...', { icon: '⏳' })
+        navigate(`/orders/${orderId}`)
+      },
+      onError: () => {
+        toast.error('Pembayaran gagal')
+        navigate(`/orders/${orderId}`)
+      },
+      onClose: () => {
+        toast('Pembayaran belum selesai. Bayar sebelum pesanan expired.', { icon: '⚠️' })
+      }
+    })
+  }
+
+  const handlePayNow = () => {
+    if (snapToken) {
+      openSnap(snapToken)
+    } else if (orderId) {
+      paymentTriggered.current = false
+      triggerPayment(order?.order_id || orderId)
+    }
+  }
+
   return (
-    <div style={{
+    <div className="success-outer" style={{
       minHeight: '100vh', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
       background: 'var(--bg-primary)', padding: 32,
       position: 'relative', overflow: 'hidden'
     }}>
-      {/* BG */}
+      <style>{`
+        @media (max-width: 768px) {
+          .success-outer { padding: 16px !important; align-items: flex-start !important; }
+          .success-card { padding: 28px 20px !important; }
+          .success-actions { flex-direction: column !important; }
+          .success-actions button { width: 100% !important; justify-content: center !important; }
+        }
+      `}</style>
       <div style={{
         position: 'absolute', inset: 0,
         background: 'radial-gradient(ellipse at 50% 40%, rgba(34,197,94,0.06) 0%, transparent 60%)'
@@ -56,43 +122,43 @@ export default function SuccessPage() {
         transition: 'all 0.7s cubic-bezier(0.4,0,0.2,1)'
       }}>
 
-        {/* Success Icon */}
         <div style={{
           width: 80, height: 80, borderRadius: '50%',
           background: 'rgba(34,197,94,0.1)',
           border: '1px solid rgba(34,197,94,0.2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 28px', fontSize: '2.2rem',
-          animation: 'scaleIn 0.5s ease 0.3s both'
-        }}>✓</div>
+          margin: '0 auto 28px'
+        }}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
 
         <div style={{
           fontSize: '0.65rem', fontWeight: 800,
           letterSpacing: '0.25em', textTransform: 'uppercase',
           color: '#22c55e', marginBottom: 12
-        }}>Pesanan Berhasil</div>
+        }}>Pesanan Berhasil Dibuat</div>
 
         <h1 style={{
           fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
           fontWeight: 900, letterSpacing: '-0.03em',
           textTransform: 'uppercase', marginBottom: 16
-        }}>TERIMA KASIH!</h1>
+        }}>SELESAIKAN PEMBAYARAN</h1>
 
         <p style={{
           color: 'var(--text-muted)', fontSize: '0.88rem',
           lineHeight: 1.8, marginBottom: 36, fontWeight: 400
         }}>
-          Pesanan kamu sudah berhasil dibuat. Segera selesaikan pembayaran untuk memproses pesanan.
+          Pesanan kamu sudah dibuat. Selesaikan pembayaran QRIS sebelum waktu habis.
         </p>
 
-        {/* Order Info */}
         {order && (
           <div style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
             borderRadius: 'var(--radius-lg)', padding: 24,
-            marginBottom: 32, textAlign: 'left',
-            animation: 'fadeInUp 0.5s ease 0.4s both'
+            marginBottom: 24, textAlign: 'left'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
@@ -101,9 +167,7 @@ export default function SuccessPage() {
                   letterSpacing: '0.15em', textTransform: 'uppercase',
                   color: 'var(--text-muted)', marginBottom: 4
                 }}>KODE PESANAN</div>
-                <div style={{ fontWeight: 900, fontSize: '0.95rem' }}>
-                  {order.order_code}
-                </div>
+                <div style={{ fontWeight: 900, fontSize: '0.95rem' }}>{order.order_code}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{
@@ -111,18 +175,13 @@ export default function SuccessPage() {
                   letterSpacing: '0.15em', textTransform: 'uppercase',
                   color: 'var(--text-muted)', marginBottom: 4
                 }}>TOTAL</div>
-                <div style={{
-                  fontWeight: 900, color: 'var(--accent-red)',
-                  fontSize: '0.95rem'
-                }}>
+                <div style={{ fontWeight: 900, color: 'var(--accent-red)', fontSize: '0.95rem' }}>
                   {formatRupiah(order.total_price)}
                 </div>
               </div>
             </div>
 
-            <div style={{
-              height: 1, background: 'var(--border-default)', marginBottom: 16
-            }} />
+            <div style={{ height: 1, background: 'var(--border-default)', marginBottom: 16 }} />
 
             {order.items?.map((item, i) => (
               <div key={i} style={{
@@ -134,56 +193,55 @@ export default function SuccessPage() {
                 <span style={{ fontWeight: 700 }}>{formatRupiah(item.price * item.quantity)}</span>
               </div>
             ))}
-
-            <div style={{
-              marginTop: 16, padding: '10px 14px',
-              background: 'rgba(245,158,11,0.06)',
-              border: '1px solid rgba(245,158,11,0.15)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.72rem', fontWeight: 700,
-              color: '#f59e0b', letterSpacing: '0.04em'
-            }}>
-              ⏳ SELESAIKAN PEMBAYARAN DI HALAMAN DETAIL PESANAN
-            </div>
           </div>
         )}
 
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        <button
+          onClick={handlePayNow}
+          disabled={paymentLoading}
+          style={{
+            width: '100%', padding: '15px',
+            background: paymentLoading ? 'var(--bg-elevated)' : 'var(--accent-red)',
+            color: paymentLoading ? 'var(--text-muted)' : 'white',
+            borderRadius: 'var(--radius-sm)', fontWeight: 800,
+            fontSize: '0.78rem', letterSpacing: '0.15em', textTransform: 'uppercase',
+            border: 'none', cursor: paymentLoading ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            boxShadow: paymentLoading ? 'none' : '0 4px 20px rgba(240,46,41,0.35)',
+            transition: 'all 0.3s ease', marginBottom: 12
+          }}>
+          {paymentLoading
+            ? <><Loader2 size={16} style={{ animation: 'rotate-slow 0.8s linear infinite' }} /> MEMUAT PEMBAYARAN...</>
+            : <><ShoppingBag size={14} /> BAYAR SEKARANG</>
+          }
+        </button>
+
+        <div className="success-actions" style={{ display: 'flex', gap: 10 }}>
           <button onClick={() => navigate('/')}
             style={{
-              flex: 1, padding: '13px',
+              flex: 1, padding: '12px',
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border-default)',
               borderRadius: 'var(--radius-sm)',
               color: 'var(--text-secondary)', fontWeight: 800,
-              fontSize: '0.7rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              transition: 'all 0.2s ease'
+              fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
             }}>
             <Home size={14} /> BERANDA
           </button>
           <button onClick={() => navigate('/orders')}
             style={{
-              flex: 2, padding: '13px',
-              background: 'var(--accent-red)', color: 'white',
-              borderRadius: 'var(--radius-sm)', fontWeight: 800,
-              fontSize: '0.7rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-              border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              boxShadow: '0 4px 16px rgba(240,46,41,0.35)'
+              flex: 2, padding: '12px',
+              background: 'transparent',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-secondary)', fontWeight: 800,
+              fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
             }}>
-            <ShoppingBag size={14} /> LIHAT PESANAN <ArrowRight size={14} />
+            LIHAT PESANAN <ArrowRight size={14} />
           </button>
         </div>
-
-        <p style={{
-          fontSize: '0.72rem', color: 'var(--text-muted)',
-          fontWeight: 600, letterSpacing: '0.04em'
-        }}>
-          Otomatis ke pesanan dalam{' '}
-          <span style={{ color: 'var(--accent-red)', fontWeight: 900 }}>{countdown}</span> detik
-        </p>
       </div>
     </div>
   )

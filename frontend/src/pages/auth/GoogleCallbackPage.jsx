@@ -1,43 +1,48 @@
 import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
-import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
 export default function GoogleCallbackPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { setAuth } = useAuthStore()
+  const { setAuth, clearAuth } = useAuthStore()
 
   useEffect(() => {
     const token = searchParams.get('token')
     const error = searchParams.get('error')
 
-    if (error) {
+    if (error || !token) {
       toast.error('Login dengan Google gagal')
-      navigate('/login')
-      return
-    }
-
-    if (!token) {
       navigate('/login')
       return
     }
 
     const fetchUser = async () => {
       try {
-        const res = await api.get('/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        setAuth(res.data.user, token)
-        toast.success('Login berhasil!')
-        if (res.data.user.role === 'admin') {
-          window.location.href = '/admin'
-        } else {
-          window.location.href = '/'
-        }
+        clearAuth()
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/me`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+
+        if (!response.ok) throw new Error('Failed')
+
+        const data = await response.json()
+        const user = data.user
+
+        // Google login selalu pakai remember me
+        setAuth(user, token, true)
+
+        toast.success(`Halo, ${user.full_name}!`)
+
+        setTimeout(() => {
+          window.location.href = user.role === 'admin' ? '/admin' : '/'
+        }, 300)
+
       } catch (err) {
-        toast.error('Gagal mengambil data user')
+        toast.error('Gagal login dengan Google')
         navigate('/login')
       }
     }

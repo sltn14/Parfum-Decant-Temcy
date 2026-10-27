@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ShoppingCart, ArrowLeft, Heart, Share2 } from 'lucide-react'
 import api from '../../api/axios'
@@ -29,12 +29,14 @@ export default function ProductDetailPage() {
   const [visible, setVisible] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteLoading, setFavoriteLoading] = useState(false)
+  const [canReview, setCanReview] = useState(false)
+  const [hasReviewed, setHasReviewed] = useState(false)
 
   const sizes = [
-    { ml: 1, key: 'price_1ml' },
-    { ml: 2, key: 'price_2ml' },
-    { ml: 3, key: 'price_3ml' },
-    { ml: 5, key: 'price_5ml' }
+    { ml: 1, key: 'price_1ml', stockKey: 'stock_1ml' },
+    { ml: 2, key: 'price_2ml', stockKey: 'stock_2ml' },
+    { ml: 3, key: 'price_3ml', stockKey: 'stock_3ml' },
+    { ml: 5, key: 'price_5ml', stockKey: 'stock_5ml' }
   ]
 
   useEffect(() => { fetchAll() }, [id])
@@ -52,10 +54,16 @@ export default function ProductDetailPage() {
       setReviews(reviewRes.data.reviews || [])
       setSimilar(similarRes.data.products || [])
       setTimeout(() => setVisible(true), 100)
+
       if (isAuthenticated) {
         try {
-          const favRes = await api.get(`/favorites/check/${id}`)
+          const [favRes, canReviewRes] = await Promise.all([
+            api.get(`/favorites/check/${id}`),
+            api.get(`/reviews/can-review/${id}`)
+          ])
           setIsFavorite(favRes.data.is_favorite)
+          setCanReview(canReviewRes.data.can_review)
+          setHasReviewed(canReviewRes.data.has_reviewed)
         } catch {}
       }
     } catch {
@@ -122,8 +130,10 @@ export default function ProductDetailPage() {
     setSubmittingReview(true)
     try {
       await api.post('/reviews', { product_id: product.product_id, ...reviewForm })
-      toast.success('Review berhasil ditambahkan!')
+      toast.success('Ulasan berhasil ditambahkan!')
       setReviewForm({ rating: 5, comment: '' })
+      setCanReview(false)
+      setHasReviewed(true)
       const res = await api.get(`/reviews/product/${id}`)
       setReviews(res.data.reviews || [])
     } catch (err) {
@@ -160,14 +170,22 @@ export default function ProductDetailPage() {
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
     : null
 
-  // Cek apakah ada data untuk ditampilkan
   const hasNotes = !!(product.top_notes || product.middle_notes || product.base_notes)
   const hasProscons = !!(product.pros || product.cons)
   const hasInfoSection = hasNotes || hasProscons
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 32px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .pd-outer-pad { padding: 24px 16px !important; }
+          .pd-main-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+          .pd-info-section-grid { grid-template-columns: 1fr !important; }
+          .pd-reviews-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+          .pd-buy-not-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+        }
+      `}</style>
+      <div className="pd-outer-pad" style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 32px' }}>
 
         {/* Back */}
         <button onClick={() => navigate(-1)} style={{
@@ -185,7 +203,7 @@ export default function ProductDetailPage() {
         </button>
 
         {/* Main Grid */}
-        <div style={{
+        <div className="pd-main-grid" style={{
           display: 'grid', gridTemplateColumns: '1fr 1fr',
           gap: 64, marginBottom: 48,
           opacity: visible ? 1 : 0,
@@ -204,7 +222,6 @@ export default function ProductDetailPage() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               position: 'relative', overflow: 'hidden', marginBottom: 16
             }}>
-              {/* Decorative circles */}
               <div style={{
                 position: 'absolute', width: 300, height: 300, borderRadius: '50%',
                 background: 'radial-gradient(circle, rgba(240,46,41,0.08) 0%, transparent 70%)',
@@ -313,28 +330,53 @@ export default function ProductDetailPage() {
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 12
               }}>PILIH UKURAN</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {sizes.map(({ ml, key }) => product[key] > 0 && (
-                  <button key={ml} onClick={() => setSelectedSize(ml)}
-                    style={{
-                      padding: '10px 18px',
-                      background: selectedSize === ml
-                        ? 'linear-gradient(135deg, var(--accent-red), #e11d18)'
-                        : 'var(--bg-elevated)',
-                      border: `1px solid ${selectedSize === ml ? 'transparent' : 'var(--border-default)'}`,
-                      borderRadius: 'var(--radius-sm)',
-                      color: selectedSize === ml ? 'white' : 'var(--text-secondary)',
-                      fontWeight: 800, cursor: 'pointer',
-                      fontSize: '0.72rem', letterSpacing: '0.06em',
-                      boxShadow: selectedSize === ml ? '0 4px 14px rgba(240,46,41,0.3)' : 'none',
-                      transition: 'all 0.2s ease'
-                    }}>
-                    {ml}ml
-                    <div style={{ fontSize: '0.62rem', fontWeight: 600, opacity: 0.85, marginTop: 2 }}>
-                      {formatRupiah(product[key])}
-                    </div>
-                  </button>
-                ))}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {sizes.map(({ ml, key, stockKey }) => {
+                  if (!product[key]) return null
+                  const stock = product[stockKey] ?? 0
+                  const isHabis = stock === 0
+                  const isSelected = selectedSize === ml
+                  return (
+                    <button key={ml}
+                      onClick={() => { if (!isHabis) { setSelectedSize(ml); setQuantity(1) } }}
+                      disabled={isHabis}
+                      style={{
+                        padding: '10px 16px',
+                        background: isHabis
+                          ? 'var(--bg-card)'
+                          : isSelected
+                            ? 'linear-gradient(135deg, var(--accent-red), #e11d18)'
+                            : 'var(--bg-elevated)',
+                        border: `1px solid ${isSelected && !isHabis ? 'transparent' : isHabis ? 'var(--border-default)' : 'var(--border-default)'}`,
+                        borderRadius: 'var(--radius-sm)',
+                        color: isHabis ? 'var(--text-muted)' : isSelected ? 'white' : 'var(--text-secondary)',
+                        fontWeight: 800,
+                        cursor: isHabis ? 'not-allowed' : 'pointer',
+                        fontSize: '0.72rem', letterSpacing: '0.06em',
+                        boxShadow: isSelected && !isHabis ? '0 4px 14px rgba(240,46,41,0.3)' : 'none',
+                        transition: 'all 0.2s ease',
+                        opacity: isHabis ? 0.5 : 1,
+                        position: 'relative'
+                      }}>
+                      {ml}ml
+                      <div style={{ fontSize: '0.62rem', fontWeight: 600, opacity: 0.85, marginTop: 2 }}>
+                        {formatRupiah(product[key])}
+                      </div>
+                      <div style={{
+                        fontSize: '0.58rem', fontWeight: 700, marginTop: 3,
+                        color: isHabis
+                          ? '#ef4444'
+                          : isSelected
+                            ? 'rgba(255,255,255,0.75)'
+                            : stock <= 5
+                              ? '#f59e0b'
+                              : 'var(--text-muted)'
+                      }}>
+                        {isHabis ? 'HABIS' : `Stok: ${stock}`}
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -366,8 +408,7 @@ export default function ProductDetailPage() {
                     border: '1px solid var(--border-default)',
                     borderRadius: 'var(--radius-sm) 0 0 var(--radius-sm)',
                     color: 'var(--text-primary)', fontSize: '1.1rem',
-                    cursor: 'pointer', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center'
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>−</button>
                 <div style={{
                   width: 56, height: 40,
@@ -377,15 +418,20 @@ export default function ProductDetailPage() {
                   borderLeft: 'none', borderRight: 'none',
                   fontWeight: 800, fontSize: '0.95rem'
                 }}>{quantity}</div>
-                <button onClick={() => setQuantity(q => q + 1)}
+                <button
+                  onClick={() => {
+                    const selectedStockKey = sizes.find(s => s.ml === selectedSize)?.stockKey
+                    const availableStock = selectedStockKey ? (product[selectedStockKey] ?? 0) : 0
+                    if (quantity < availableStock) setQuantity(q => q + 1)
+                    else toast.error(`Stok tidak mencukupi. Stok tersedia: ${availableStock} pcs`)
+                  }}
                   style={{
                     width: 40, height: 40,
                     background: 'var(--bg-elevated)',
                     border: '1px solid var(--border-default)',
                     borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
                     color: 'var(--text-primary)', fontSize: '1.1rem',
-                    cursor: 'pointer', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center'
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>+</button>
               </div>
             </div>
@@ -430,59 +476,44 @@ export default function ProductDetailPage() {
                   cursor: favoriteLoading ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={e => {
-                  if (!favoriteLoading && !isFavorite) {
-                    e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'
-                    e.currentTarget.style.color = '#ef4444'
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isFavorite) {
-                    e.currentTarget.style.borderColor = 'var(--border-default)'
-                    e.currentTarget.style.color = 'var(--text-secondary)'
-                  }
                 }}>
                 <Heart size={15} fill={isFavorite ? 'currentColor' : 'none'} />
                 {isFavorite ? 'TERSIMPAN DI FAVORIT' : 'SIMPAN KE FAVORIT'}
               </button>
 
-	      <button onClick={handleShare}
-  		style={{
-    		  width: '100%', padding: '13px',
-    		  background: 'var(--bg-elevated)',
-    		  border: '1px solid var(--border-default)',
-    		  color: 'var(--text-secondary)',
-    		  fontWeight: 800, fontSize: '0.72rem',
-    		  letterSpacing: '0.12em', textTransform: 'uppercase',
-    		  borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-    		  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    		  transition: 'all 0.2s ease'
-  		}}
-  		onMouseEnter={e => {
-    		  e.currentTarget.style.borderColor = 'var(--border-hover)'
-    		  e.currentTarget.style.color = 'var(--text-primary)'
-    		  e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-  		}}
-  		onMouseLeave={e => {
-    		  e.currentTarget.style.borderColor = 'var(--border-default)'
-  		  e.currentTarget.style.color = 'var(--text-secondary)'
- 	 	  e.currentTarget.style.background = 'var(--bg-elevated)'
-  		}}>
-  		<Share2 size={15} /> BAGIKAN PRODUK
-	      </button>
+              <button onClick={handleShare}
+                style={{
+                  width: '100%', padding: '13px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 800, fontSize: '0.72rem',
+                  letterSpacing: '0.12em', textTransform: 'uppercase',
+                  borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'var(--border-hover)'
+                  e.currentTarget.style.color = 'var(--text-primary)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'var(--border-default)'
+                  e.currentTarget.style.color = 'var(--text-secondary)'
+                }}>
+                <Share2 size={15} /> BAGIKAN PRODUK
+              </button>
             </div>
           </div>
         </div>
 
-        {/* ===== NOTES + PROS/CONS — hanya render kalau ada data ===== */}
+        {/* Notes + Pros/Cons */}
         {hasInfoSection && (
-          <div style={{
+          <div className="pd-info-section-grid" style={{
             display: 'grid',
             gridTemplateColumns: hasNotes && hasProscons ? '1fr 1fr' : '1fr',
             gap: 20, marginBottom: 24
           }}>
-            {/* Notes */}
             {hasNotes && (
               <div style={{
                 background: 'var(--bg-card)',
@@ -546,7 +577,6 @@ export default function ProductDetailPage() {
               </div>
             )}
 
-            {/* Pros & Cons */}
             {hasProscons && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {product.pros && (
@@ -588,14 +618,13 @@ export default function ProductDetailPage() {
           </div>
         )}
 
-        {/* ===== REVIEWS ===== */}
+        {/* Reviews */}
         <div style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border-default)',
           borderRadius: 'var(--radius-lg)', padding: 36, marginBottom: 48
         }}>
-          {/* Header review */}
-          <div style={{
+          <div className="pd-reviews-header" style={{
             display: 'flex', justifyContent: 'space-between',
             alignItems: 'center', marginBottom: 28
           }}>
@@ -624,72 +653,113 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {/* Form tulis ulasan — hanya kalau login */}
           {isAuthenticated ? (
-            <form onSubmit={handleSubmitReview} style={{
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 'var(--radius-md)', padding: 22, marginBottom: 28
-            }}>
+            hasReviewed ? (
               <div style={{
-                fontSize: '0.62rem', fontWeight: 800,
-                letterSpacing: '0.15em', textTransform: 'uppercase',
-                color: 'var(--text-muted)', marginBottom: 14
-              }}>TULIS ULASAN</div>
-
-              {/* Star rating */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-                {[1, 2, 3, 4, 5].map(star => (
-                  <button key={star} type="button"
-                    onClick={() => setReviewForm(prev => ({ ...prev, rating: star }))}
-                    style={{
-                      fontSize: '1.3rem', cursor: 'pointer',
-                      opacity: star <= reviewForm.rating ? 1 : 0.25,
-                      transform: star <= reviewForm.rating ? 'scale(1.15)' : 'scale(1)',
-                      transition: '150ms ease', background: 'none', border: 'none'
-                    }}>⭐</button>
-                ))}
-                <span style={{
-                  marginLeft: 8, fontSize: '0.75rem',
-                  color: 'var(--text-muted)', fontWeight: 600,
-                  alignSelf: 'center'
+                padding: '16px 20px', marginBottom: 28,
+                background: 'rgba(34,197,94,0.06)',
+                border: '1px solid rgba(34,197,94,0.15)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex', alignItems: 'center', gap: 10
+              }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: '#22c55e', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}>
-                  {reviewForm.rating}/5
+                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                    <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5"
+                      strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: '0.82rem', color: '#22c55e', fontWeight: 600 }}>
+                  Kamu sudah memberikan ulasan untuk produk ini
                 </span>
               </div>
+            ) : canReview ? (
+              <form onSubmit={handleSubmitReview} style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-md)', padding: 22, marginBottom: 28
+              }}>
+                <div style={{
+                  fontSize: '0.62rem', fontWeight: 800,
+                  letterSpacing: '0.15em', textTransform: 'uppercase',
+                  color: 'var(--text-muted)', marginBottom: 14
+                }}>TULIS ULASAN</div>
 
-              <textarea
-                value={reviewForm.comment}
-                onChange={e => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
-                placeholder="Bagikan pengalaman kamu dengan parfum ini..."
-                rows={3}
-                style={{
-                  width: '100%', padding: '12px 14px',
-                  background: 'var(--bg-input)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-primary)', fontSize: '0.85rem',
-                  resize: 'vertical', outline: 'none', marginBottom: 12,
-                  fontFamily: 'var(--font-sans)', lineHeight: 1.6, fontWeight: 400
-                }}
-                onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
-              />
-              <button type="submit" disabled={submittingReview}
-                style={{
-                  padding: '10px 24px',
-                  background: submittingReview ? 'var(--border-hover)' : 'var(--accent-red)',
-                  color: 'white', fontWeight: 800,
-                  borderRadius: 'var(--radius-sm)', border: 'none',
-                  cursor: submittingReview ? 'not-allowed' : 'pointer',
-                  fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-                  boxShadow: submittingReview ? 'none' : '0 4px 12px rgba(240,46,41,0.3)'
-                }}>
-                {submittingReview ? 'MENGIRIM...' : 'KIRIM ULASAN'}
-              </button>
-            </form>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button key={star} type="button"
+                      onClick={() => setReviewForm(prev => ({ ...prev, rating: star }))}
+                      style={{
+                        fontSize: '1.3rem', cursor: 'pointer',
+                        opacity: star <= reviewForm.rating ? 1 : 0.25,
+                        transform: star <= reviewForm.rating ? 'scale(1.15)' : 'scale(1)',
+                        transition: '150ms ease', background: 'none', border: 'none'
+                      }}>⭐</button>
+                  ))}
+                  <span style={{
+                    marginLeft: 8, fontSize: '0.75rem',
+                    color: 'var(--text-muted)', fontWeight: 600, alignSelf: 'center'
+                  }}>{reviewForm.rating}/5</span>
+                </div>
+
+                <textarea
+                  value={reviewForm.comment}
+                  onChange={e => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
+                  placeholder="Bagikan pengalaman kamu dengan parfum ini..."
+                  rows={3}
+                  style={{
+                    width: '100%', padding: '12px 14px',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-primary)', fontSize: '0.85rem',
+                    resize: 'vertical', outline: 'none', marginBottom: 12,
+                    fontFamily: 'var(--font-sans)', lineHeight: 1.6, fontWeight: 400
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+                />
+                <button type="submit" disabled={submittingReview}
+                  style={{
+                    padding: '10px 24px',
+                    background: submittingReview ? 'var(--border-hover)' : 'var(--accent-red)',
+                    color: 'white', fontWeight: 800,
+                    borderRadius: 'var(--radius-sm)', border: 'none',
+                    cursor: submittingReview ? 'not-allowed' : 'pointer',
+                    fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase',
+                    boxShadow: submittingReview ? 'none' : '0 4px 12px rgba(240,46,41,0.3)'
+                  }}>
+                  {submittingReview ? 'MENGIRIM...' : 'KIRIM ULASAN'}
+                </button>
+              </form>
+            ) : (
+              <div className="pd-buy-not-header" style={{
+                padding: '16px 20px', marginBottom: 28,
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+              }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                  Beli produk ini terlebih dahulu untuk memberikan ulasan
+                </span>
+                <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  style={{
+                    padding: '8px 16px', flexShrink: 0,
+                    background: 'var(--accent-red)', color: 'white',
+                    borderRadius: 'var(--radius-sm)', fontWeight: 800,
+                    fontSize: '0.68rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+                    border: 'none', cursor: 'pointer'
+                  }}>
+                  BELI SEKARANG
+                </button>
+              </div>
+            )
           ) : (
-            <div style={{
+            <div className="pd-buy-not-header" style={{
               padding: '18px 20px', marginBottom: 28,
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border-default)',
@@ -755,18 +825,14 @@ export default function ProductDetailPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
                       {[1, 2, 3, 4, 5].map(s => (
-                        <span key={s} style={{
-                          fontSize: '0.82rem',
-                          opacity: s <= review.rating ? 1 : 0.15
-                        }}>⭐</span>
+                        <span key={s} style={{ fontSize: '0.82rem', opacity: s <= review.rating ? 1 : 0.15 }}>⭐</span>
                       ))}
                     </div>
                   </div>
                   {review.comment && (
-                    <p style={{
-                      color: 'var(--text-secondary)', fontSize: '0.85rem',
-                      lineHeight: 1.7, fontWeight: 400
-                    }}>{review.comment}</p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.7, fontWeight: 400 }}>
+                      {review.comment}
+                    </p>
                   )}
                 </div>
               ))}
@@ -774,7 +840,7 @@ export default function ProductDetailPage() {
           )}
         </div>
 
-        {/* ===== PRODUK SERUPA ===== */}
+        {/* Produk Serupa */}
         {similar.length > 0 && (
           <div>
             <div style={{
@@ -848,7 +914,6 @@ export default function ProductDetailPage() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   )

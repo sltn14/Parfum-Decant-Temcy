@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, MapPin, Plus, Tag, X, ChevronDown, Truck, Store } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Plus, X, Truck, Store } from 'lucide-react'
 import api from '../../api/axios'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
@@ -17,30 +17,25 @@ export default function CheckoutPage() {
   const [cart, setCart] = useState(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-
-  // Delivery method
   const [deliveryMethod, setDeliveryMethod] = useState('delivery')
-
-  // Address
   const [addresses, setAddresses] = useState([])
   const [selectedAddressId, setSelectedAddressId] = useState(null)
-  const [showAddressModal, setShowAddressModal] = useState(false)
+  const [useManual, setUseManual] = useState(false)
   const [manualAddress, setManualAddress] = useState({
     shipping_name: '', shipping_phone: '',
     shipping_address: '', shipping_city: '', shipping_notes: ''
   })
-  const [useManual, setUseManual] = useState(false)
-
-  // Shipping
   const [courier, setCourier] = useState('')
   const [courierServices, setCourierServices] = useState([])
   const [selectedService, setSelectedService] = useState(null)
   const [loadingCost, setLoadingCost] = useState(false)
-
-  // Voucher
   const [voucherCode, setVoucherCode] = useState('')
   const [appliedVoucher, setAppliedVoucher] = useState(null)
   const [checkingVoucher, setCheckingVoucher] = useState(false)
+  const [showVoucherModal, setShowVoucherModal] = useState(false)
+  const [availableVouchers, setAvailableVouchers] = useState([])
+  const [loadingVouchers, setLoadingVouchers] = useState(false)
+  const [voucherSearch, setVoucherSearch] = useState('')
 
   useEffect(() => {
     fetchCart()
@@ -75,12 +70,14 @@ export default function CheckoutPage() {
     } catch {}
   }
 
+  const getSubtotal = () =>
+    cart?.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0
+
   const handleCourierChange = async (selectedCourier) => {
     setCourier(selectedCourier)
     setSelectedService(null)
     setCourierServices([])
 
-    // COD langsung set tanpa API call
     if (selectedCourier === 'cod') {
       setCourierServices([{
         service: 'COD',
@@ -92,7 +89,7 @@ export default function CheckoutPage() {
 
     const selectedAddr = addresses.find(a => a.address_id === selectedAddressId)
     if (!selectedAddr?.city_id) {
-      toast.error('Pilih alamat dengan kota yang valid')
+      toast.error('Pilih alamat dengan kota yang valid dulu')
       return
     }
 
@@ -109,22 +106,45 @@ export default function CheckoutPage() {
     finally { setLoadingCost(false) }
   }
 
-  const handleCheckVoucher = async () => {
-    if (!voucherCode.trim()) return
+  const handleCheckVoucher = async (codeToCheck = null) => {
+    const code = codeToCheck || voucherCode
+    if (!code || !code.trim()) {
+      toast.error('Masukkan kode voucher dulu')
+      return
+    }
     setCheckingVoucher(true)
     try {
       const res = await api.post('/vouchers/check', {
-        code: voucherCode,
-        total_price: subtotal
+        code: code.trim(),
+        total_price: getSubtotal()
       })
       setAppliedVoucher(res.data.voucher)
-      toast.success(`Voucher berhasil! Diskon ${formatRupiah(res.data.voucher.discount)}`)
+      setVoucherCode(res.data.voucher.code)
+      setShowVoucherModal(false)
+      toast.success(`Voucher berhasil! Hemat ${formatRupiah(res.data.voucher.discount)}`)
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Voucher tidak valid')
-      setAppliedVoucher(null)
+      toast.error(err.response?.data?.message || 'Voucher tidak valid atau sudah habis')
     } finally {
       setCheckingVoucher(false)
     }
+  }
+
+  const fetchAvailableVouchers = async () => {
+    setLoadingVouchers(true)
+    try {
+      const res = await api.get('/vouchers/active')
+      setAvailableVouchers(res.data.vouchers || [])
+    } catch {
+      setAvailableVouchers([])
+    } finally {
+      setLoadingVouchers(false)
+    }
+  }
+
+  const handleOpenVoucherModal = () => {
+    setShowVoucherModal(true)
+    setVoucherSearch('')
+    fetchAvailableVouchers()
   }
 
   const handleSubmit = async (e) => {
@@ -139,7 +159,6 @@ export default function CheckoutPage() {
 
       if (deliveryMethod === 'delivery') {
         if (!useManual && selectedAddressId) {
-          // Pakai alamat tersimpan — tidak perlu validasi manual
           payload.address_id = selectedAddressId
           if (selectedService) {
             payload.courier = courier
@@ -147,9 +166,8 @@ export default function CheckoutPage() {
             payload.shipping_cost = selectedService.cost[0].value
           }
         } else if (useManual) {
-          // Pakai alamat manual — validasi dulu
           if (!manualAddress.shipping_name || !manualAddress.shipping_phone ||
-              !manualAddress.shipping_address || !manualAddress.shipping_city) {
+            !manualAddress.shipping_address || !manualAddress.shipping_city) {
             toast.error('Lengkapi semua data pengiriman')
             setSubmitting(false)
             return
@@ -170,7 +188,6 @@ export default function CheckoutPage() {
           return
         }
       } else {
-        // Pickup
         payload.shipping_name = user?.full_name || 'Pickup'
         payload.shipping_phone = user?.phone || '-'
         payload.shipping_address = 'Pickup di toko'
@@ -188,12 +205,10 @@ export default function CheckoutPage() {
     }
   }
 
-  const subtotal = cart?.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0
+  const subtotal = getSubtotal()
   const shippingCost = deliveryMethod === 'pickup' ? 0 : (selectedService?.cost[0]?.value || 0)
   const discount = appliedVoucher?.discount || 0
   const total = subtotal + shippingCost - discount
-
-  const selectedAddress = addresses.find(a => a.address_id === selectedAddressId)
 
   const inputStyle = {
     width: '100%', padding: '12px 14px',
@@ -227,14 +242,36 @@ export default function CheckoutPage() {
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .checkout-main-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .checkout-summary {
+            position: static !important;
+          }
+          .checkout-outer-pad {
+            padding: 24px 16px !important;
+          }
+          .checkout-manual-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .checkout-courier-row {
+            flex-wrap: wrap !important;
+          }
+          .checkout-courier-row button {
+            flex: 1 1 calc(50% - 5px) !important;
+          }
+        }
+      `}</style>
+      <div className="checkout-outer-pad" style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
 
         <button onClick={() => navigate('/cart')} style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           marginBottom: 32, color: 'var(--text-muted)', cursor: 'pointer',
           fontSize: '0.72rem', fontWeight: 800,
           letterSpacing: '0.12em', textTransform: 'uppercase',
-          transition: 'color 0.2s ease'
+          transition: 'color 0.2s ease', background: 'none', border: 'none'
         }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
@@ -255,7 +292,7 @@ export default function CheckoutPage() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32 }}>
+          <div className="checkout-main-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32 }}>
 
             {/* LEFT */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -285,27 +322,20 @@ export default function CheckoutPage() {
                         background: deliveryMethod === value ? 'rgba(240,46,41,0.08)' : 'var(--bg-elevated)',
                         border: `1px solid ${deliveryMethod === value ? 'var(--accent-red)' : 'var(--border-default)'}`,
                         borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer', textAlign: 'left',
-                        transition: 'all 0.2s ease'
+                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease'
                       }}>
                       <div style={{
-                        color: deliveryMethod === value ? 'var(--accent-red)' : 'var(--text-muted)',
-                        marginBottom: 8
+                        color: deliveryMethod === value ? 'var(--accent-red)' : 'var(--text-muted)', marginBottom: 8
                       }}>{icon}</div>
                       <div style={{
-                        fontWeight: 800, fontSize: '0.78rem',
-                        letterSpacing: '0.1em',
-                        color: deliveryMethod === value ? 'var(--accent-red)' : 'var(--text-secondary)',
-                        marginBottom: 4
+                        fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.1em',
+                        color: deliveryMethod === value ? 'var(--accent-red)' : 'var(--text-secondary)', marginBottom: 4
                       }}>{label}</div>
-                      <div style={{
-                        fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400
-                      }}>{desc}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{desc}</div>
                     </button>
                   ))}
                 </div>
 
-                {/* Pickup Info */}
                 {deliveryMethod === 'pickup' && (
                   <div style={{
                     marginTop: 16, padding: '14px 16px',
@@ -327,7 +357,7 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* Address Section (only delivery) */}
+              {/* Address */}
               {deliveryMethod === 'delivery' && (
                 <div style={{
                   background: 'var(--bg-card)',
@@ -336,21 +366,17 @@ export default function CheckoutPage() {
                 }}>
                   <div style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    marginBottom: 16, paddingBottom: 14,
-                    borderBottom: '1px solid var(--border-default)'
+                    marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--border-default)'
                   }}>
                     <div style={{
                       fontSize: '0.65rem', fontWeight: 800,
-                      letterSpacing: '0.2em', textTransform: 'uppercase',
-                      color: 'var(--text-muted)'
+                      letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--text-muted)'
                     }}>ALAMAT PENGIRIMAN</div>
-                    <button type="button"
-                      onClick={() => setUseManual(!useManual)}
+                    <button type="button" onClick={() => setUseManual(!useManual)}
                       style={{
                         fontSize: '0.65rem', fontWeight: 800,
                         letterSpacing: '0.1em', textTransform: 'uppercase',
-                        color: 'var(--accent-red)', cursor: 'pointer',
-                        background: 'none', border: 'none'
+                        color: 'var(--accent-red)', cursor: 'pointer', background: 'none', border: 'none'
                       }}>
                       {useManual ? 'PILIH DARI DAFTAR' : 'ISI MANUAL'}
                     </button>
@@ -363,12 +389,10 @@ export default function CheckoutPage() {
                           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 16 }}>
                             Belum ada alamat tersimpan
                           </p>
-                          <button type="button"
-                            onClick={() => navigate('/addresses')}
+                          <button type="button" onClick={() => navigate('/addresses')}
                             style={{
                               display: 'inline-flex', alignItems: 'center', gap: 6,
-                              padding: '10px 20px',
-                              background: 'var(--accent-red)', color: 'white',
+                              padding: '10px 20px', background: 'var(--accent-red)', color: 'white',
                               borderRadius: 'var(--radius-sm)', fontWeight: 800,
                               fontSize: '0.7rem', letterSpacing: '0.1em', textTransform: 'uppercase',
                               border: 'none', cursor: 'pointer'
@@ -390,13 +414,12 @@ export default function CheckoutPage() {
                                 padding: '14px 16px',
                                 background: selectedAddressId === addr.address_id ? 'rgba(240,46,41,0.06)' : 'var(--bg-elevated)',
                                 border: `1px solid ${selectedAddressId === addr.address_id ? 'var(--accent-red)' : 'var(--border-default)'}`,
-                                borderRadius: 'var(--radius-md)',
-                                cursor: 'pointer', transition: 'all 0.2s ease',
-                                display: 'flex', gap: 12, alignItems: 'flex-start'
+                                borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                                transition: 'all 0.2s ease', display: 'flex', gap: 12, alignItems: 'flex-start'
                               }}>
                               <div style={{
                                 width: 16, height: 16, borderRadius: '50%', flexShrink: 0, marginTop: 2,
-                                background: selectedAddressId === addr.address_id ? 'var(--accent-red)' : 'var(--bg-elevated)',
+                                background: selectedAddressId === addr.address_id ? 'var(--accent-red)' : 'transparent',
                                 border: `2px solid ${selectedAddressId === addr.address_id ? 'var(--accent-red)' : 'var(--border-hover)'}`,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center'
                               }}>
@@ -405,7 +428,7 @@ export default function CheckoutPage() {
                                 )}
                               </div>
                               <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
                                   <span style={{
                                     fontSize: '0.6rem', fontWeight: 800,
                                     letterSpacing: '0.1em', textTransform: 'uppercase',
@@ -423,18 +446,13 @@ export default function CheckoutPage() {
                               </div>
                             </div>
                           ))}
-                          <button type="button"
-                            onClick={() => navigate('/addresses')}
+                          <button type="button" onClick={() => navigate('/addresses')}
                             style={{
-                              display: 'flex', alignItems: 'center', gap: 6,
-                              padding: '10px',
-                              background: 'transparent',
-                              border: '1px dashed var(--border-hover)',
-                              borderRadius: 'var(--radius-md)',
-                              color: 'var(--text-muted)', cursor: 'pointer',
-                              justifyContent: 'center', fontSize: '0.72rem',
-                              fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                              transition: 'all 0.2s ease'
+                              display: 'flex', alignItems: 'center', gap: 6, padding: '10px',
+                              background: 'transparent', border: '1px dashed var(--border-hover)',
+                              borderRadius: 'var(--radius-md)', color: 'var(--text-muted)', cursor: 'pointer',
+                              justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700,
+                              letterSpacing: '0.1em', textTransform: 'uppercase', transition: 'all 0.2s ease'
                             }}
                             onMouseEnter={e => {
                               e.currentTarget.style.borderColor = 'var(--accent-red)'
@@ -451,7 +469,7 @@ export default function CheckoutPage() {
                     </>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div className="checkout-manual-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div>
                           <label style={labelStyle}>Nama Penerima</label>
                           <input type="text" value={manualAddress.shipping_name}
@@ -503,7 +521,7 @@ export default function CheckoutPage() {
                 </div>
               )}
 
-              {/* Courier (only delivery) */}
+              {/* Courier */}
               {deliveryMethod === 'delivery' && (selectedAddressId || useManual) && (
                 <div style={{
                   background: 'var(--bg-card)',
@@ -517,10 +535,9 @@ export default function CheckoutPage() {
                     paddingBottom: 14, borderBottom: '1px solid var(--border-default)'
                   }}>PILIH KURIR</div>
 
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                  <div className="checkout-courier-row" style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
                     {COURIERS.map(c => (
-                      <button key={c} type="button"
-                        onClick={() => handleCourierChange(c)}
+                      <button key={c} type="button" onClick={() => handleCourierChange(c)}
                         style={{
                           flex: 1, padding: '10px',
                           background: courier === c ? 'rgba(240,46,41,0.08)' : 'var(--bg-elevated)',
@@ -531,7 +548,7 @@ export default function CheckoutPage() {
                           fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
                           transition: 'all 0.2s ease'
                         }}>
-                        {c.toUpperCase()}
+                        {c === 'cod' ? 'COD' : c.toUpperCase()}
                       </button>
                     ))}
                   </div>
@@ -545,14 +562,13 @@ export default function CheckoutPage() {
                   {courierServices.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {courierServices.map((service, i) => (
-                        <div key={i}
-                          onClick={() => setSelectedService(service)}
+                        <div key={i} onClick={() => setSelectedService(service)}
                           style={{
                             padding: '12px 14px',
                             background: selectedService?.service === service.service ? 'rgba(240,46,41,0.06)' : 'var(--bg-elevated)',
                             border: `1px solid ${selectedService?.service === service.service ? 'var(--accent-red)' : 'var(--border-default)'}`,
-                            borderRadius: 'var(--radius-md)',
-                            cursor: 'pointer', transition: 'all 0.2s ease',
+                            borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                            transition: 'all 0.2s ease',
                             display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                           }}>
                           <div>
@@ -567,7 +583,7 @@ export default function CheckoutPage() {
                             </span>
                           </div>
                           <span style={{ fontWeight: 900, fontSize: '0.88rem' }}>
-                            {formatRupiah(service.cost[0].value)}
+                            {service.cost[0].value === 0 ? 'GRATIS' : formatRupiah(service.cost[0].value)}
                           </span>
                         </div>
                       ))}
@@ -591,59 +607,104 @@ export default function CheckoutPage() {
 
                 {appliedVoucher ? (
                   <div style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '12px 16px',
+                    padding: '14px 16px',
                     background: 'rgba(34,197,94,0.06)',
                     border: '1px solid rgba(34,197,94,0.2)',
-                    borderRadius: 'var(--radius-md)'
+                    borderRadius: 'var(--radius-md)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                   }}>
                     <div>
-                      <div style={{
-                        fontSize: '0.72rem', fontWeight: 800,
-                        letterSpacing: '0.1em', color: '#22c55e', marginBottom: 2
-                      }}>
-                        ✓ {appliedVoucher.code}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <div style={{
+                          width: 18, height: 18, borderRadius: '50%',
+                          background: '#22c55e', flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                            <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="1.5"
+                              strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </div>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#22c55e', letterSpacing: '0.08em' }}>
+                          {appliedVoucher.code}
+                        </span>
                       </div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                        Hemat {formatRupiah(appliedVoucher.discount)}
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                        Hemat <strong style={{ color: '#22c55e' }}>{formatRupiah(appliedVoucher.discount)}</strong> dari total belanja
                       </div>
                     </div>
-                    <button type="button" onClick={() => { setAppliedVoucher(null); setVoucherCode('') }}
-                      style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
-                      <X size={16} />
+                    <button type="button"
+                      onClick={() => { setAppliedVoucher(null); setVoucherCode('') }}
+                      style={{
+                        width: 28, height: 28, borderRadius: '50%',
+                        background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+                        color: '#ef4444', cursor: 'pointer', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = '#ef4444' }}>
+                      <X size={12} />
                     </button>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <input
-                      type="text" placeholder="MASUKKAN KODE VOUCHER"
-                      value={voucherCode}
-                      onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <button type="button" onClick={handleOpenVoucherModal}
                       style={{
-                        flex: 1, padding: '12px 14px',
-                        background: 'var(--bg-input)',
-                        border: '1px solid var(--border-default)',
+                        width: '100%', padding: '12px 16px',
+                        background: 'var(--bg-elevated)',
+                        border: '1px dashed var(--border-hover)',
                         borderRadius: 'var(--radius-sm)',
-                        color: 'var(--text-primary)', fontSize: '0.82rem',
-                        outline: 'none', fontFamily: 'var(--font-sans)',
-                        fontWeight: 700, letterSpacing: '0.08em',
-                        transition: 'border-color 0.2s ease'
-                      }}
-                      onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
-                      onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
-                    />
-                    <button type="button" onClick={handleCheckVoucher} disabled={checkingVoucher || !voucherCode}
-                      style={{
-                        padding: '12px 20px',
-                        background: voucherCode ? 'var(--accent-red)' : 'var(--border-hover)',
-                        color: 'white', fontWeight: 800,
-                        fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
-                        borderRadius: 'var(--radius-sm)', border: 'none',
-                        cursor: voucherCode ? 'pointer' : 'not-allowed',
+                        color: 'var(--text-muted)', fontWeight: 700,
+                        fontSize: '0.78rem', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.borderColor = 'var(--accent-red)'
+                        e.currentTarget.style.color = 'var(--accent-red)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = 'var(--border-hover)'
+                        e.currentTarget.style.color = 'var(--text-muted)'
                       }}>
-                      {checkingVoucher ? '...' : 'PAKAI'}
+                      <span>🎁 Pilih atau masukkan voucher</span>
+                      <span style={{ fontSize: '0.72rem' }}>›</span>
                     </button>
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text" placeholder="KODE VOUCHER"
+                        value={voucherCode}
+                        onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleCheckVoucher())}
+                        style={{
+                          flex: 1, padding: '11px 14px',
+                          background: 'var(--bg-input)',
+                          border: '1px solid var(--border-default)',
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--text-primary)', fontSize: '0.82rem',
+                          outline: 'none', fontFamily: 'var(--font-sans)',
+                          fontWeight: 700, letterSpacing: '0.08em',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                        onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                        onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+                      />
+                      <button type="button" onClick={() => handleCheckVoucher()}
+                        disabled={checkingVoucher || !voucherCode.trim()}
+                        style={{
+                          padding: '11px 18px',
+                          background: voucherCode.trim() ? 'var(--accent-red)' : 'var(--border-hover)',
+                          color: 'white', fontWeight: 800,
+                          fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+                          borderRadius: 'var(--radius-sm)', border: 'none',
+                          cursor: voucherCode.trim() && !checkingVoucher ? 'pointer' : 'not-allowed',
+                          transition: 'all 0.2s ease'
+                        }}>
+                        {checkingVoucher ? '...' : 'PAKAI'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -673,7 +734,7 @@ export default function CheckoutPage() {
                     background: 'var(--accent-red)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '0.62rem', fontWeight: 900,
-                    letterSpacing: '0.06em', color: 'white'
+                    letterSpacing: '0.06em', color: 'white', flexShrink: 0
                   }}>QRIS</div>
                   <div>
                     <div style={{ fontWeight: 800, fontSize: '0.85rem', marginBottom: 2 }}>QRIS</div>
@@ -687,7 +748,7 @@ export default function CheckoutPage() {
 
             {/* RIGHT — Summary */}
             <div>
-              <div style={{
+              <div className="checkout-summary" style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border-default)',
                 borderRadius: 'var(--radius-lg)', padding: 28,
@@ -699,20 +760,25 @@ export default function CheckoutPage() {
                   color: 'var(--text-muted)', marginBottom: 20
                 }}>RINGKASAN PESANAN</div>
 
-                {/* Items */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
                   {cart?.items?.map(item => (
-                    <div key={item.cart_item_id} style={{
-                      display: 'flex', gap: 10, alignItems: 'center'
-                    }}>
+                    <div key={item.cart_item_id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                       <div style={{
                         width: 40, height: 40, flexShrink: 0,
                         background: 'var(--bg-elevated)',
                         borderRadius: 'var(--radius-sm)',
                         border: '1px solid var(--border-default)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '1.1rem'
-                      }}>🧴</div>
+                        fontSize: '1.1rem', overflow: 'hidden'
+                      }}>
+                        {item.product?.image_filename && item.product.image_filename !== 'default.png' ? (
+                          <img
+                            src={`http://localhost:5000/uploads/products/${item.product.image_filename}`}
+                            alt={item.product?.product_name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : '🧴'}
+                      </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: 1 }}>
                           {item.product?.product_name}
@@ -728,9 +794,7 @@ export default function CheckoutPage() {
                   ))}
                 </div>
 
-                <div style={{
-                  height: 1, background: 'var(--border-default)', marginBottom: 16
-                }} />
+                <div style={{ height: 1, background: 'var(--border-default)', marginBottom: 16 }} />
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
@@ -757,8 +821,7 @@ export default function CheckoutPage() {
                 }}>
                   <div style={{
                     fontSize: '0.62rem', fontWeight: 800,
-                    letterSpacing: '0.15em', textTransform: 'uppercase',
-                    color: 'var(--text-muted)'
+                    letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text-muted)'
                   }}>TOTAL BAYAR</div>
                   <div style={{
                     fontSize: '1.4rem', fontWeight: 900,
@@ -778,9 +841,7 @@ export default function CheckoutPage() {
                     boxShadow: submitting ? 'none' : '0 4px 20px rgba(240,46,41,0.35)',
                     transition: 'all 0.3s ease'
                   }}
-                  onMouseEnter={e => {
-                    if (!submitting) e.currentTarget.style.transform = 'translateY(-2px)'
-                  }}
+                  onMouseEnter={e => { if (!submitting) e.currentTarget.style.transform = 'translateY(-2px)' }}
                   onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                 >
                   <ShoppingBag size={16} />
@@ -791,6 +852,232 @@ export default function CheckoutPage() {
           </div>
         </form>
       </div>
+
+      {/* Voucher Modal */}
+      {showVoucherModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, backdropFilter: 'blur(8px)'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
+            width: '100%', maxWidth: 480,
+            maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+            animation: 'scaleIn 0.2s ease'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid var(--border-default)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <h3 style={{
+                fontWeight: 900, fontSize: '0.95rem',
+                textTransform: 'uppercase', letterSpacing: '-0.01em'
+              }}>PILIH VOUCHER</h3>
+              <button type="button" onClick={() => setShowVoucherModal(false)}
+                style={{ color: 'var(--text-muted)', cursor: 'pointer', background: 'none', border: 'none' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-default)' }}>
+              <input
+                type="text" placeholder="Cari atau ketik kode voucher..."
+                value={voucherSearch}
+                onChange={e => setVoucherSearch(e.target.value.toUpperCase())}
+                autoFocus
+                style={{
+                  width: '100%', padding: '11px 14px',
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)', fontSize: '0.85rem',
+                  outline: 'none', fontFamily: 'var(--font-sans)', fontWeight: 500,
+                  letterSpacing: '0.04em'
+                }}
+                onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+              />
+            </div>
+
+            {/* List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+              {loadingVouchers ? (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    border: '2px solid var(--border-default)',
+                    borderTopColor: 'var(--accent-red)',
+                    animation: 'rotate-slow 0.8s linear infinite',
+                    margin: '0 auto 12px'
+                  }} />
+                  <div style={{ fontSize: '0.82rem' }}>Memuat voucher...</div>
+                </div>
+              ) : availableVouchers.filter(v =>
+                !voucherSearch || v.code.includes(voucherSearch)
+              ).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  {voucherSearch ? `Voucher "${voucherSearch}" tidak ditemukan` : 'Tidak ada voucher tersedia saat ini'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {availableVouchers
+                    .filter(v => !voucherSearch || v.code.includes(voucherSearch))
+                    .map(v => {
+                      const sub = getSubtotal()
+                      const canUse = sub >= v.min_purchase
+                      const isSelected = appliedVoucher?.code === v.code
+
+                      let previewDiscount = 0
+                      if (canUse) {
+                        if (v.type === 'percentage') {
+                          previewDiscount = Math.floor(sub * (v.value / 100))
+                          if (v.max_discount) previewDiscount = Math.min(previewDiscount, v.max_discount)
+                        } else {
+                          previewDiscount = Math.min(v.value, sub)
+                        }
+                      }
+
+                      return (
+                        <div key={v.voucher_id} style={{
+                          padding: '16px', position: 'relative', overflow: 'hidden',
+                          background: canUse
+                            ? (isSelected ? 'rgba(34,197,94,0.06)' : 'var(--bg-elevated)')
+                            : 'var(--bg-elevated)',
+                          border: `1px solid ${isSelected ? '#22c55e' : canUse ? 'var(--border-default)' : 'var(--border-default)'}`,
+                          borderRadius: 'var(--radius-md)',
+                          opacity: canUse ? 1 : 0.55
+                        }}>
+                          <div style={{
+                            position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
+                            background: canUse ? (isSelected ? '#22c55e' : 'var(--accent-red)') : 'var(--border-hover)',
+                            borderRadius: '4px 0 0 4px'
+                          }} />
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingLeft: 8 }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                                <span style={{
+                                  fontSize: '0.88rem', fontWeight: 900,
+                                  color: canUse ? (isSelected ? '#22c55e' : 'var(--accent-red)') : 'var(--text-muted)',
+                                  letterSpacing: '0.06em'
+                                }}>{v.code}</span>
+                                {v.expired_at && (
+                                  <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                    s/d {new Date(v.expired_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                                {v.type === 'percentage'
+                                  ? `Diskon ${v.value}%${v.max_discount ? ` (maks. ${formatRupiah(v.max_discount)})` : ''}`
+                                  : `Diskon ${formatRupiah(v.value)}`}
+                              </div>
+
+                              {v.min_purchase > 0 && (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500, marginBottom: 3 }}>
+                                  Min. belanja {formatRupiah(v.min_purchase)}
+                                  {!canUse && (
+                                    <span style={{ color: '#f59e0b', fontWeight: 700, marginLeft: 6 }}>
+                                      · kurang {formatRupiah(v.min_purchase - sub)}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {canUse && previewDiscount > 0 && (
+                                <div style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 800, marginBottom: 3 }}>
+                                  Hemat {formatRupiah(previewDiscount)}
+                                </div>
+                              )}
+
+                              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>
+                                Sisa {v.quota - v.used_count} kuota
+                              </div>
+                            </div>
+
+                            <button type="button"
+                              disabled={!canUse || checkingVoucher}
+                              onClick={() => {
+                                if (!canUse) return
+                                setVoucherCode(v.code)
+                                handleCheckVoucher(v.code)
+                              }}
+                              style={{
+                                padding: '8px 14px', marginLeft: 12, flexShrink: 0, alignSelf: 'center',
+                                background: !canUse ? 'var(--bg-card)' : isSelected ? '#22c55e' : 'var(--accent-red)',
+                                color: !canUse ? 'var(--text-muted)' : 'white',
+                                border: `1px solid ${!canUse ? 'var(--border-default)' : isSelected ? '#22c55e' : 'transparent'}`,
+                                borderRadius: 'var(--radius-sm)', fontWeight: 800,
+                                fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+                                cursor: canUse && !checkingVoucher ? 'pointer' : 'not-allowed',
+                                transition: 'all 0.2s ease'
+                              }}>
+                              {checkingVoucher && voucherCode === v.code ? '...' : isSelected ? 'TERPAKAI' : canUse ? 'PAKAI' : 'BELUM BISA'}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer input manual */}
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid var(--border-default)',
+              display: 'flex', gap: 8
+            }}>
+              <input
+                type="text" placeholder="Punya kode lain? Ketik di sini..."
+                value={voucherSearch}
+                onChange={e => {
+                  setVoucherSearch(e.target.value.toUpperCase())
+                  setVoucherCode(e.target.value.toUpperCase())
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && voucherSearch.trim()) {
+                    e.preventDefault()
+                    handleCheckVoucher(voucherSearch)
+                  }
+                }}
+                style={{
+                  flex: 1, padding: '11px 14px',
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)', fontSize: '0.82rem',
+                  outline: 'none', fontFamily: 'var(--font-sans)',
+                  fontWeight: 600, letterSpacing: '0.06em'
+                }}
+                onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+              />
+              <button type="button"
+                onClick={() => handleCheckVoucher(voucherSearch)}
+                disabled={!voucherSearch.trim() || checkingVoucher}
+                style={{
+                  padding: '11px 18px',
+                  background: voucherSearch.trim() ? 'var(--accent-red)' : 'var(--border-hover)',
+                  color: 'white', fontWeight: 800,
+                  fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
+                  borderRadius: 'var(--radius-sm)', border: 'none',
+                  cursor: voucherSearch.trim() ? 'pointer' : 'not-allowed'
+                }}>
+                {checkingVoucher ? '...' : 'PAKAI'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

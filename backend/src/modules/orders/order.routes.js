@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const {
-  checkout, getMyOrders, getOrder, uploadPaymentProof,
-  getAllOrders, updateOrderStatus, createPayment, cancelOrder
+  checkout, getMyOrders, getOrder,
+  getAllOrders, updateOrderStatus,
+  createPayment, uploadPaymentProof, cancelOrder
 } = require('./order.controller');
 const { authenticate, authorizeAdmin } = require('../../middleware/auth.middleware');
-const { midtransWebhook } = require('./webhook.controller');
 const multer = require('multer');
 const path = require('path');
 
@@ -18,22 +18,22 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Webhook tidak butuh auth
+// ⚠️ Route spesifik HARUS di atas route dinamis
+
+// Admin routes — di atas supaya tidak tertangkap /:id
+router.get('/admin/all', authenticate, authorizeAdmin, getAllOrders);
+router.put('/:id/status', authenticate, authorizeAdmin, updateOrderStatus);
+
+// Webhook Midtrans
+const { midtransWebhook } = require('./webhook.controller');
 router.post('/webhook/midtrans', midtransWebhook);
 
-// Semua route di bawah butuh auth
-router.use(authenticate);
-
-// Customer
-router.post('/checkout', checkout);
-router.get('/my-orders', getMyOrders);
-router.get('/my-orders/:id', getOrder);
-router.post('/my-orders/:id/payment-proof', upload.single('payment_proof'), uploadPaymentProof);
-router.post('/my-orders/:id/create-payment', createPayment);
-router.put('/my-orders/:id/cancel', cancelOrder);
-
-// Admin
-router.get('/', authorizeAdmin, getAllOrders);
-router.put('/:id/status', authorizeAdmin, updateOrderStatus);
+// Customer routes
+router.post('/checkout', authenticate, checkout);
+router.get('/my-orders', authenticate, getMyOrders);
+router.get('/my-orders/:id', authenticate, getOrder);
+router.post('/my-orders/:id/create-payment', authenticate, createPayment);
+router.post('/my-orders/:id/payment-proof', authenticate, upload.single('payment_proof'), uploadPaymentProof);
+router.put('/my-orders/:id/cancel', authenticate, cancelOrder);
 
 module.exports = router;

@@ -27,7 +27,11 @@ const Product = sequelize.define('Product', {
   price_2ml: { type: DataTypes.INTEGER },
   price_3ml: { type: DataTypes.INTEGER },
   price_5ml: { type: DataTypes.INTEGER },
-  stock_ml: { type: DataTypes.FLOAT, defaultValue: 0 },
+  // Stok per ukuran botol (pcs)
+  stock_1ml: { type: DataTypes.INTEGER, defaultValue: 0 },
+  stock_2ml: { type: DataTypes.INTEGER, defaultValue: 0 },
+  stock_3ml: { type: DataTypes.INTEGER, defaultValue: 0 },
+  stock_5ml: { type: DataTypes.INTEGER, defaultValue: 0 },
   sold_count: { type: DataTypes.INTEGER, defaultValue: 0 },
   weight_g: { type: DataTypes.STRING(20) },
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Trash2 } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import ConfirmModal from '../../components/common/ConfirmModal'
 
 export default function AdminReviews() {
   const [reviews, setReviews] = useState([])
@@ -9,6 +10,8 @@ export default function AdminReviews() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+  const [deleteTarget, setDeleteTarget] = useState(null) // review_id
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => { fetchReviews() }, [page])
 
@@ -23,24 +26,43 @@ export default function AdminReviews() {
     finally { setLoading(false) }
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Hapus review ini?')) return
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await api.delete(`/reviews/admin/${id}`)
+      await api.delete(`/reviews/admin/${deleteTarget}`)
       toast.success('Review dihapus!')
+      setDeleteTarget(null)
       fetchReviews()
     } catch { toast.error('Gagal menghapus') }
+    finally { setDeleting(false) }
   }
 
   return (
     <div>
+      <style>{`
+        @media (max-width: 768px) {
+          .reviews-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+          .reviews-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .reviews-table-wrap table {
+            min-width: 600px;
+          }
+        }
+      `}</style>
+
       <div style={{ marginBottom: 32 }}>
         <div style={{
           fontSize: '0.62rem', fontWeight: 800,
           letterSpacing: '0.22em', textTransform: 'uppercase',
           color: 'var(--accent-red)', marginBottom: 8
         }}>Kelola</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div className="reviews-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <h1 style={{
             fontWeight: 900, fontSize: '1.8rem',
             letterSpacing: '-0.02em', textTransform: 'uppercase',
@@ -52,7 +74,7 @@ export default function AdminReviews() {
         </div>
       </div>
 
-      <div style={{
+      <div className="reviews-table-wrap" style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-lg)', overflow: 'hidden'
@@ -99,16 +121,12 @@ export default function AdminReviews() {
                 <td style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', gap: 2 }}>
                     {[1,2,3,4,5].map(s => (
-                      <span key={s} style={{
-                        fontSize: '0.82rem',
-                        opacity: s <= review.rating ? 1 : 0.15
-                      }}>⭐</span>
+                      <span key={s} style={{ fontSize: '0.82rem', opacity: s <= review.rating ? 1 : 0.15 }}>⭐</span>
                     ))}
                   </div>
                   <div style={{
-                    fontSize: '0.62rem', fontWeight: 800,
-                    color: review.rating >= 4 ? '#22c55e' : review.rating >= 3 ? '#f59e0b' : '#ef4444',
-                    marginTop: 2
+                    fontSize: '0.62rem', fontWeight: 800, marginTop: 2,
+                    color: review.rating >= 4 ? '#22c55e' : review.rating >= 3 ? '#f59e0b' : '#ef4444'
                   }}>{review.rating}/5</div>
                 </td>
                 <td style={{ padding: '12px 16px', maxWidth: 280 }}>
@@ -126,7 +144,7 @@ export default function AdminReviews() {
                   })}
                 </td>
                 <td style={{ padding: '12px 16px' }}>
-                  <button onClick={() => handleDelete(review.review_id)}
+                  <button onClick={() => setDeleteTarget(review.review_id)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 5,
                       padding: '6px 12px',
@@ -175,6 +193,16 @@ export default function AdminReviews() {
             }}>NEXT →</button>
         </div>
       )}
+
+      <ConfirmModal
+        show={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={deleting}
+        title="HAPUS REVIEW?"
+        message="Review ini akan dihapus secara permanen dan tidak bisa dikembalikan."
+        confirmLabel="YA, HAPUS"
+      />
     </div>
   )
 }

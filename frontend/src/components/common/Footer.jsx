@@ -14,6 +14,45 @@ export default function Footer() {
       background: 'var(--bg-secondary)',
       borderTop: '1px solid var(--border-default)'
     }}>
+      <style>{`
+        .footer-grid {
+          display: grid;
+          grid-template-columns: 2.5fr 1fr 1fr 1fr;
+          gap: 48px;
+          margin-bottom: 64px;
+        }
+        .footer-bottom {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+        @media (max-width: 768px) {
+          .footer-grid {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 32px !important;
+            margin-bottom: 40px !important;
+          }
+          .footer-brand-col {
+            grid-column: 1 / -1;
+          }
+          .footer-bottom {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px !important;
+          }
+          .footer-main-padding {
+            padding: 40px 20px 32px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .footer-grid {
+            grid-template-columns: 1fr !important;
+            gap: 24px !important;
+          }
+        }
+      `}</style>
 
       {/* Marquee Strip */}
       <div style={{
@@ -41,16 +80,11 @@ export default function Footer() {
       </div>
 
       {/* Main Footer */}
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '64px 32px 40px' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '2.5fr 1fr 1fr 1fr',
-          gap: 48, marginBottom: 64
-        }}>
+      <div className="footer-main-padding" style={{ maxWidth: 1400, margin: '0 auto', padding: '64px 32px 40px' }}>
+        <div className="footer-grid">
 
           {/* Brand */}
-          <div>
-            {/* Logo */}
+          <div className="footer-brand-col">
             <div style={{ marginBottom: 20 }}>
               <div style={{
                 width: 40, height: 40, overflow: 'hidden',
@@ -80,37 +114,18 @@ export default function Footer() {
             {/* Social */}
             <div style={{ display: 'flex', gap: 12 }}>
               {[
-                {
-                  icon: <FaInstagram size={16} />,
-                  label: 'Instagram',
-                  href: 'https://www.instagram.com/decant.temcy'
-                },
-                {
-                  icon: <FaWhatsapp size={16} />,
-                  label: 'WhatsApp',
-                  href: 'https://wa.me/6285128061012'
-                },
-                {
-                  icon: <Mail size={16} />,
-                  label: 'Email',
-                  href: null
-                }
+                { icon: <FaInstagram size={16} />, label: 'Instagram', href: 'https://www.instagram.com/decant.temcy' },
+                { icon: <FaWhatsapp size={16} />, label: 'WhatsApp', href: 'https://wa.me/6285128061012' },
+                { icon: <Mail size={16} />, label: 'Email', href: null }
               ].map(({ icon, label, href }) => (
                 href ? (
-                  <a
-                    key={label}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <a key={label} href={href} target="_blank" rel="noopener noreferrer"
                     style={{
-                      width: 36, height: 36,
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border-default)',
+                      width: 36, height: 36, borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
                       color: 'var(--text-muted)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      cursor: 'pointer', transition: 'all 0.2s ease',
-                      textDecoration: 'none'
+                      cursor: 'pointer', transition: 'all 0.2s ease', textDecoration: 'none'
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.borderColor = 'var(--accent-red)'
@@ -125,18 +140,13 @@ export default function Footer() {
                     {icon}
                   </a>
                 ) : (
-                  <div
-                    key={label}
-                    title="Segera hadir"
+                  <div key={label} title="Segera hadir"
                     style={{
-                      width: 36, height: 36,
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border-default)',
+                      width: 36, height: 36, borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
                       color: 'var(--text-muted)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      opacity: 0.4,
-                      cursor: 'not-allowed'
+                      opacity: 0.4, cursor: 'not-allowed'
                     }}>
                     {icon}
                   </div>
@@ -160,14 +170,11 @@ export default function Footer() {
               <Link key={to} to={to} style={{
                 display: 'block', color: 'var(--text-muted)',
                 fontSize: '0.85rem', marginBottom: 12,
-                fontWeight: 500, transition: 'color 0.2s ease',
-                textDecoration: 'none'
+                fontWeight: 500, transition: 'color 0.2s ease', textDecoration: 'none'
               }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-              >
-                {label}
-              </Link>
+              >{label}</Link>
             ))}
           </div>
 
@@ -189,14 +196,11 @@ export default function Footer() {
               <Link key={to} to={to} style={{
                 display: 'block', color: 'var(--text-muted)',
                 fontSize: '0.85rem', marginBottom: 12,
-                fontWeight: 500, transition: 'color 0.2s ease',
-                textDecoration: 'none'
+                fontWeight: 500, transition: 'color 0.2s ease', textDecoration: 'none'
               }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-              >
-                {label}
-              </Link>
+              >{label}</Link>
             ))}
           </div>
 
@@ -215,14 +219,11 @@ export default function Footer() {
               <Link key={to} to={to} style={{
                 display: 'block', color: 'var(--text-muted)',
                 fontSize: '0.85rem', marginBottom: 12,
-                fontWeight: 500, transition: 'color 0.2s ease',
-                textDecoration: 'none'
+                fontWeight: 500, transition: 'color 0.2s ease', textDecoration: 'none'
               }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-red)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-              >
-                {label}
-              </Link>
+              >{label}</Link>
             ))}
 
             {/* Badge */}
@@ -252,28 +253,20 @@ export default function Footer() {
         }} />
 
         {/* Bottom */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between',
-          alignItems: 'center', flexWrap: 'wrap', gap: 16
-        }}>
-          <p style={{
-            color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 400
-          }}>
+        <div className="footer-bottom">
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 400 }}>
             © 2025 <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Decant Temcy</span>.
             All rights reserved.
           </p>
-          <div style={{ display: 'flex', gap: 24 }}>
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             {['Kebijakan Privasi', 'Syarat & Ketentuan'].map(label => (
               <span key={label} style={{
                 fontSize: '0.78rem', color: 'var(--text-muted)',
-                cursor: 'pointer', fontWeight: 400,
-                transition: 'color 0.2s ease'
+                cursor: 'pointer', fontWeight: 400, transition: 'color 0.2s ease'
               }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--text-secondary)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-              >
-                {label}
-              </span>
+              >{label}</span>
             ))}
           </div>
         </div>

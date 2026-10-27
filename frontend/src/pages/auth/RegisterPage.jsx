@@ -155,7 +155,7 @@ export default function RegisterPage() {
                   <input
                     type={showPass ? 'text' : 'password'}
                     name="password" value={form.password}
-                    onChange={handleChange} placeholder="Minimal 6 karakter"
+                    onChange={handleChange} placeholder="Minimal 8 karakter"
                     required style={{ ...inputStyle, paddingRight: 48 }}
                     onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
                     onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
@@ -173,6 +173,10 @@ export default function RegisterPage() {
               <button onClick={() => {
                 if (!form.full_name || !form.email || !form.password) {
                   toast.error('Isi semua field yang wajib')
+                  return
+                }
+                if (form.password.length < 8) {
+                  toast.error('Password minimal 8 karakter')
                   return
                 }
                 setStep(2)

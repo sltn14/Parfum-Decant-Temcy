@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Edit, Trash2, Check, MapPin, X } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import ConfirmModal from '../../components/common/ConfirmModal'
 
 const LABELS = ['Rumah', 'Kantor', 'Kost', 'Lainnya']
 
@@ -13,6 +14,8 @@ export default function AddressPage() {
   const [provinces, setProvinces] = useState([])
   const [cities, setCities] = useState([])
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
   const [form, setForm] = useState({
     label: 'Rumah', recipient_name: '', phone: '',
     province: '', province_id: '', city: '', city_id: '',
@@ -92,6 +95,7 @@ export default function AddressPage() {
         province: '', province_id: '', city: '', city_id: '',
         district: '', postal_code: '', detail: '', is_default: false
       })
+      setCities([])
     }
     setShowModal(true)
   }
@@ -116,13 +120,16 @@ export default function AddressPage() {
     }
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Hapus alamat ini?')) return
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await api.delete(`/addresses/${id}`)
+      await api.delete(`/addresses/${deleteTarget}`)
       toast.success('Alamat dihapus')
+      setDeleteTarget(null)
       fetchAddresses()
     } catch { toast.error('Gagal menghapus') }
+    finally { setDeleting(false) }
   }
 
   const handleSetDefault = async (id) => {
@@ -151,9 +158,19 @@ export default function AddressPage() {
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '48px 32px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .addr-outer-pad { padding: 24px 16px !important; }
+          .addr-header-row { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .addr-header-row button { width: 100% !important; justify-content: center !important; }
+          .addr-card-actions { flex-wrap: wrap !important; }
+          .addr-modal-inner { padding: 24px 20px !important; }
+          .addr-form-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+      <div className="addr-outer-pad" style={{ maxWidth: 900, margin: '0 auto', padding: '48px 32px' }}>
 
-        <div style={{
+        <div className="addr-header-row" style={{
           display: 'flex', justifyContent: 'space-between',
           alignItems: 'flex-end', marginBottom: 40
         }}>
@@ -185,18 +202,23 @@ export default function AddressPage() {
 
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[1,2].map(i => (
-              <div key={i} className="skeleton" style={{ height: 120, borderRadius: 'var(--radius-lg)' }} />
+            {[1, 2].map(i => (
+              <div key={i} style={{
+                height: 120, borderRadius: 'var(--radius-lg)',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-default)',
+                animation: 'pulse 1.5s ease-in-out infinite'
+              }} />
             ))}
           </div>
         ) : addresses.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '80px 0' }}>
-            <MapPin size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 16px', display: 'block' }} />
+            <MapPin size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 16px', display: 'block', opacity: 0.4 }} />
             <h3 style={{
               fontWeight: 900, textTransform: 'uppercase',
               letterSpacing: '-0.02em', marginBottom: 10
             }}>BELUM ADA ALAMAT</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 24 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 24, fontWeight: 400 }}>
               Tambahkan alamat pengiriman kamu
             </p>
             <button onClick={() => openModal()}
@@ -205,7 +227,8 @@ export default function AddressPage() {
                 background: 'var(--accent-red)', color: 'white',
                 borderRadius: 'var(--radius-sm)', fontWeight: 800,
                 fontSize: '0.75rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-                border: 'none', cursor: 'pointer'
+                border: 'none', cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(240,46,41,0.3)'
               }}>
               TAMBAH ALAMAT BARU
             </button>
@@ -231,7 +254,7 @@ export default function AddressPage() {
                   }}>DEFAULT</div>
                 )}
 
-                <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10 }}>
                   <div style={{
                     padding: '4px 10px',
                     background: 'var(--bg-elevated)',
@@ -250,11 +273,13 @@ export default function AddressPage() {
                   color: 'var(--text-secondary)', fontSize: '0.85rem',
                   lineHeight: 1.7, marginBottom: 16, fontWeight: 400
                 }}>
-                  {addr.detail}, {addr.district && `${addr.district}, `}{addr.city}, {addr.province}
+                  {addr.detail}
+                  {addr.district && `, ${addr.district}`}
+                  {`, ${addr.city}, ${addr.province}`}
                   {addr.postal_code && ` ${addr.postal_code}`}
                 </p>
 
-                <div style={{ display: 'flex', gap: 10 }}>
+                <div className="addr-card-actions" style={{ display: 'flex', gap: 10 }}>
                   {!addr.is_default && (
                     <button onClick={() => handleSetDefault(addr.address_id)}
                       style={{
@@ -278,6 +303,7 @@ export default function AddressPage() {
                       <Check size={12} /> SET DEFAULT
                     </button>
                   )}
+
                   <button onClick={() => openModal(addr)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6,
@@ -299,7 +325,8 @@ export default function AddressPage() {
                     }}>
                     <Edit size={12} /> EDIT
                   </button>
-                  <button onClick={() => handleDelete(addr.address_id)}
+
+                  <button onClick={() => setDeleteTarget(addr.address_id)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6,
                       padding: '7px 14px',
@@ -327,7 +354,7 @@ export default function AddressPage() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Modal Tambah/Edit */}
       {showModal && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 1000,
@@ -335,7 +362,7 @@ export default function AddressPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: 24, backdropFilter: 'blur(8px)'
         }}>
-          <div style={{
+          <div className="addr-modal-inner" style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
             borderRadius: 'var(--radius-lg)',
@@ -354,7 +381,7 @@ export default function AddressPage() {
                 {editAddress ? 'EDIT ALAMAT' : 'TAMBAH ALAMAT BARU'}
               </h2>
               <button onClick={() => setShowModal(false)}
-                style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>
+                style={{ color: 'var(--text-muted)', cursor: 'pointer', background: 'none', border: 'none' }}>
                 <X size={20} />
               </button>
             </div>
@@ -381,7 +408,7 @@ export default function AddressPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+              <div className="addr-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                 <div>
                   <label style={labelStyle}>Nama Penerima</label>
                   <input type="text" value={form.recipient_name}
@@ -402,11 +429,14 @@ export default function AddressPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+              <div className="addr-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                 <div>
                   <label style={labelStyle}>Provinsi</label>
                   <select value={form.province_id} onChange={handleProvinceChange} required
-                    style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}>
+                    style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}
+                    onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+                  >
                     <option value="">Pilih Provinsi</option>
                     {provinces.map(p => (
                       <option key={p.province_id} value={p.province_id}>{p.province}</option>
@@ -417,7 +447,14 @@ export default function AddressPage() {
                   <label style={labelStyle}>Kota/Kabupaten</label>
                   <select value={form.city_id} onChange={handleCityChange} required
                     disabled={!form.province_id}
-                    style={{ ...inputStyle, appearance: 'none', cursor: form.province_id ? 'pointer' : 'not-allowed', opacity: form.province_id ? 1 : 0.5 }}>
+                    style={{
+                      ...inputStyle, appearance: 'none',
+                      cursor: form.province_id ? 'pointer' : 'not-allowed',
+                      opacity: form.province_id ? 1 : 0.5
+                    }}
+                    onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+                  >
                     <option value="">Pilih Kota</option>
                     {cities.map(c => (
                       <option key={c.city_id} value={c.city_id}>{c.city_name}</option>
@@ -426,9 +463,12 @@ export default function AddressPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+              <div className="addr-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                 <div>
-                  <label style={labelStyle}>Kecamatan <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opsional)</span></label>
+                  <label style={labelStyle}>
+                    Kecamatan{' '}
+                    <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opsional)</span>
+                  </label>
                   <input type="text" value={form.district}
                     onChange={e => setForm(prev => ({ ...prev, district: e.target.value }))}
                     placeholder="Nama kecamatan" style={inputStyle}
@@ -459,12 +499,8 @@ export default function AddressPage() {
                 />
               </div>
 
-              {/* Default checkbox */}
               <div style={{ marginBottom: 28 }}>
-                <label style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  cursor: 'pointer'
-                }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                   <div
                     onClick={() => setForm(prev => ({ ...prev, is_default: !prev.is_default }))}
                     style={{
@@ -476,9 +512,9 @@ export default function AddressPage() {
                     }}>
                     {form.is_default && <Check size={11} style={{ color: 'white' }} />}
                   </div>
-                  <span style={{
-                    fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)'
-                  }}>Jadikan sebagai alamat utama</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                    Jadikan sebagai alamat utama
+                  </span>
                 </label>
               </div>
 
@@ -511,6 +547,16 @@ export default function AddressPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        show={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={deleting}
+        title="HAPUS ALAMAT?"
+        message="Alamat ini akan dihapus permanen dan tidak bisa dikembalikan."
+        confirmLabel="YA, HAPUS"
+      />
     </div>
   )
 }

@@ -8,13 +8,21 @@ const nodemailer = require('nodemailer');
 const register = async (req, res) => {
   try {
     const { full_name, email, password, phone, pref_gender, pref_aroma, pref_longevity } = req.body;
+
     if (!full_name || !email || !password) {
       return res.status(400).json({ message: 'Nama, email, dan password wajib diisi' });
     }
+
+    // Validasi panjang password minimum 8 karakter
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password minimal 8 karakter' });
+    }
+
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: 'Email sudah terdaftar' });
     }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       full_name, email,
@@ -24,6 +32,7 @@ const register = async (req, res) => {
       pref_aroma: pref_aroma || null,
       pref_longevity: pref_longevity || null
     });
+
     return res.status(201).json({
       message: 'Registrasi berhasil',
       user: {
@@ -46,30 +55,40 @@ const login = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ message: 'Email dan password wajib diisi' });
     }
+
     const user = await User.findOne({ where: { email } });
     if (!user) {
       return res.status(401).json({ message: 'Email atau password salah' });
     }
 
-    // Cek kalau user login via Google (tidak punya password)
     if (!user.password) {
       return res.status(401).json({ message: 'Akun ini terdaftar via Google. Gunakan Login dengan Google.' });
+    }
+
+    if (!user.is_active) {
+      return res.status(401).json({ message: 'Akun kamu telah dinonaktifkan. Hubungi admin untuk informasi lebih lanjut.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Email atau password salah' });
     }
+
+    // Update last_login_at
+    await user.update({ last_login_at: new Date() });
+
     const token = jwt.sign(
       { user_id: user.user_id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
+
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
+
     return res.status(200).json({
       message: 'Login berhasil',
       token,
@@ -100,7 +119,7 @@ const logout = (req, res) => {
 const getMe = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.user_id, {
-      attributes: { exclude: ['password', 'reset_token', 'reset_token_expires'] }
+      attributes: { exclude: ['password', 'google_id', 'reset_token', 'reset_token_expires'] }
     });
     return res.status(200).json({ user });
   } catch (err) {
@@ -114,7 +133,6 @@ const forgotPassword = async (req, res) => {
     const { email } = req.body;
     const user = await User.findOne({ where: { email } });
 
-    // Selalu return 200 biar tidak bocor info email terdaftar atau tidak
     if (!user) {
       return res.status(200).json({ message: 'Jika email terdaftar, link reset akan dikirim' });
     }
@@ -179,8 +197,9 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Token dan password baru wajib diisi' });
     }
 
-    if (new_password.length < 6) {
-      return res.status(400).json({ message: 'Password minimal 6 karakter' });
+    // Validasi panjang password minimum 8 karakter
+    if (new_password.length < 8) {
+      return res.status(400).json({ message: 'Password minimal 8 karakter' });
     }
 
     const { Op } = require('sequelize');
