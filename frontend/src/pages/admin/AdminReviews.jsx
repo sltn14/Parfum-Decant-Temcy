@@ -41,18 +41,24 @@ export default function AdminReviews() {
   return (
     <div>
       <style>{`
+        .reviews-header { display: flex; justify-content: space-between; align-items: flex-end; }
+        .reviews-h1 {
+          font-weight: 900; font-size: 1.8rem;
+          letter-spacing: -0.02em; text-transform: uppercase;
+          color: var(--text-primary); margin: 0;
+        }
+        .reviews-table-wrap {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .reviews-table-wrap table { min-width: 600px; }
         @media (max-width: 768px) {
           .reviews-header {
             flex-direction: column !important;
             align-items: flex-start !important;
           }
-          .reviews-table-wrap {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-          }
-          .reviews-table-wrap table {
-            min-width: 600px;
-          }
+          .reviews-h1 { font-size: 1.3rem !important; }
+          .reviews-table-wrap table { min-width: 580px; }
         }
       `}</style>
 
@@ -62,12 +68,8 @@ export default function AdminReviews() {
           letterSpacing: '0.22em', textTransform: 'uppercase',
           color: 'var(--accent-red)', marginBottom: 8
         }}>Kelola</div>
-        <div className="reviews-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <h1 style={{
-            fontWeight: 900, fontSize: '1.8rem',
-            letterSpacing: '-0.02em', textTransform: 'uppercase',
-            color: 'var(--text-primary)'
-          }}>MANAJEMEN REVIEW</h1>
+        <div className="reviews-header">
+          <h1 className="reviews-h1">MANAJEMEN REVIEW</h1>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
             <span style={{ color: 'var(--text-primary)', fontWeight: 900 }}>{total}</span> review
           </div>

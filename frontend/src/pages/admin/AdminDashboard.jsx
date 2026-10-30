@@ -112,35 +112,53 @@ export default function AdminDashboard() {
   return (
     <div>
       <style>{`
+        .dash-header { margin-bottom: 36px; }
+        .dash-label-tag {
+          font-size: 0.62rem; font-weight: 800;
+          letter-spacing: 0.22em; text-transform: uppercase;
+          color: var(--accent-red); margin-bottom: 8px;
+        }
+        .dash-h1 {
+          font-size: 1.8rem; font-weight: 900;
+          letter-spacing: -0.02em; text-transform: uppercase;
+          color: var(--text-primary); margin: 0;
+        }
+        .dash-stat-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+          margin-bottom: 36px;
+        }
+        .dash-bottom-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
         @media (max-width: 768px) {
+          .dash-header { margin-bottom: 20px !important; }
+          .dash-h1 { font-size: 1.3rem !important; }
+          .dash-stat-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+          .dash-stat-grid > div { padding: 14px !important; }
           .dash-stat-grid {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+            margin-bottom: 20px !important;
           }
           .dash-bottom-grid {
             grid-template-columns: 1fr !important;
+            gap: 14px !important;
           }
         }
       `}</style>
 
       {/* Header */}
-      <div style={{ marginBottom: 36 }}>
-        <div style={{
-          fontSize: '0.62rem', fontWeight: 800,
-          letterSpacing: '0.22em', textTransform: 'uppercase',
-          color: 'var(--accent-red)', marginBottom: 8
-        }}>Overview</div>
-        <h1 style={{
-          fontSize: '1.8rem', fontWeight: 900,
-          letterSpacing: '-0.02em', textTransform: 'uppercase',
-          color: 'var(--text-primary)'
-        }}>DASHBOARD</h1>
+      <div className="dash-header">
+        <div className="dash-label-tag">Overview</div>
+        <h1 className="dash-h1">DASHBOARD</h1>
       </div>
 
       {/* Stat Cards */}
-      <div className="dash-stat-grid" style={{
-        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: 16, marginBottom: 36
-      }}>
+      <div className="dash-stat-grid">
         {statCards.map(({ label, value, icon, color, suffix, isRupiah, onClick }, i) => (
           <div key={label}
             onClick={onClick}
@@ -205,7 +223,7 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      <div className="dash-bottom-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="dash-bottom-grid">
 
         {/* Recent Orders */}
         <div style={{

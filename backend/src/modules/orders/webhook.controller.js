@@ -3,6 +3,7 @@ const OrderItem = require('./order_item.model');
 const Notification = require('../notification/notification.model');
 const User = require('../auth/user.model');
 const { sendOrderEmail } = require('../../utils/emailHelper');
+const { restoreStockMl } = require('../../utils/stockMl');
 const crypto = require('crypto');
 
 const midtransWebhook = async (req, res) => {
@@ -119,6 +120,7 @@ const midtransWebhook = async (req, res) => {
     ) {
       if (order.status === 'pending') {
         await order.update({ status: 'cancelled' });
+        await restoreStockMl(order.items);
 
         // Notifikasi in-app
         try {

@@ -134,10 +134,46 @@ export default function AdminInventory() {
   return (
     <div>
       <style>{`
+        .inv-header { margin-bottom: 32px; }
+        .inv-label-tag {
+          font-size: 0.62rem; font-weight: 800;
+          letter-spacing: 0.22em; text-transform: uppercase;
+          color: var(--accent-red); margin-bottom: 8px;
+        }
+        .inv-h1 {
+          font-weight: 900; font-size: 1.8rem;
+          letter-spacing: -0.02em; text-transform: uppercase;
+          color: var(--text-primary); margin: 0;
+        }
+        .inv-summary-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 14px;
+          margin-bottom: 28px;
+        }
+        .inv-toolbar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .inv-table-wrap {
+          background: var(--bg-card);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-lg);
+          overflow: hidden;
+        }
         @media (max-width: 768px) {
+          .inv-header { margin-bottom: 20px !important; }
+          .inv-h1 { font-size: 1.3rem !important; }
           .inv-summary-grid {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+            margin-bottom: 16px !important;
           }
+          .inv-summary-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
           .inv-toolbar {
             flex-direction: column !important;
             align-items: stretch !important;
@@ -145,32 +181,17 @@ export default function AdminInventory() {
           .inv-toolbar > div {
             max-width: 100% !important;
           }
-          .inv-table-wrap {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-          }
-          .inv-table-wrap table {
-            min-width: 700px;
-          }
         }
       `}</style>
 
       {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <div style={{
-          fontSize: '0.62rem', fontWeight: 800,
-          letterSpacing: '0.22em', textTransform: 'uppercase',
-          color: 'var(--accent-red)', marginBottom: 8
-        }}>Kelola</div>
-        <h1 style={{
-          fontWeight: 900, fontSize: '1.8rem',
-          letterSpacing: '-0.02em', textTransform: 'uppercase',
-          color: 'var(--text-primary)'
-        }}>Manajemen Inventaris</h1>
+      <div className="inv-header">
+        <div className="inv-label-tag">Kelola</div>
+        <h1 className="inv-h1">MANAJEMEN INVENTARIS</h1>
       </div>
 
       {/* Summary Cards */}
-      <div className="inv-summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="inv-summary-grid">
         {summaryCards.map(({ label, value, color, f, desc }) => {
           const active = filter === f
           return (
@@ -214,10 +235,7 @@ export default function AdminInventory() {
       </div>
 
       {/* Toolbar */}
-      <div className="inv-toolbar" style={{
-        display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap'
-      }}>
+      <div className="inv-toolbar">
         {/* Search */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
@@ -277,11 +295,7 @@ export default function AdminInventory() {
       </div>
 
       {/* Table */}
-      <div className="inv-table-wrap" style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-default)',
-        borderRadius: 'var(--radius-lg)', overflow: 'hidden'
-      }}>
+      <div className="inv-table-wrap">
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-default)' }}>

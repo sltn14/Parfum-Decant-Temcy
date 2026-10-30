@@ -66,8 +66,16 @@ export default function FavoritePage() {
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
       <style>{`
         @media (max-width: 768px) {
-          .fav-outer-pad { padding: 24px 16px !important; }
-          .fav-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .fav-outer-pad { padding: 20px 16px !important; }
+          .fav-h1 { font-size: 1.3rem !important; }
+          .fav-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+          .fav-grid .fav-card-img { height: 140px !important; }
+          .fav-grid .fav-card-body { padding: 10px 12px 12px !important; }
+          .fav-grid .fav-card-brand { font-size: 0.52rem !important; }
+          .fav-grid .fav-card-name { font-size: 0.8rem !important; }
+          .fav-grid .fav-card-meta { font-size: 0.65rem !important; }
+          .fav-grid .fav-card-bottom { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+          .fav-grid .fav-card-btn { width: 100% !important; justify-content: center !important; }
         }
       `}</style>
       <div className="fav-outer-pad" style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
@@ -78,7 +86,7 @@ export default function FavoritePage() {
             letterSpacing: '0.22em', textTransform: 'uppercase',
             color: 'var(--accent-red)', marginBottom: 10
           }}>Koleksi Saya</div>
-          <h1 style={{
+          <h1 className="fav-h1" style={{
             fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
             fontWeight: 900, letterSpacing: '-0.03em', textTransform: 'uppercase'
           }}>
@@ -143,7 +151,7 @@ export default function FavoritePage() {
                   onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-default)'}
                 >
                   {/* Image */}
-                  <div style={{
+                  <div className="fav-card-img" style={{
   		    height: 180,
   		    background: 'var(--bg-elevated)',
   		    display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -195,13 +203,13 @@ export default function FavoritePage() {
                   </div>
 
                   {/* Body */}
-                  <div style={{ padding: '16px 18px 18px' }}>
-                    <div style={{
+                  <div className="fav-card-body" style={{ padding: '16px 18px 18px' }}>
+                    <div className="fav-card-brand" style={{
                       fontSize: '0.62rem', fontWeight: 800,
                       letterSpacing: '0.12em', textTransform: 'uppercase',
                       color: 'var(--accent-red)', marginBottom: 4
                     }}>{product.brand}</div>
-                    <div
+                    <div className="fav-card-name"
                       onClick={() => navigate(`/product/${product.product_id}`)}
                       style={{
                         fontWeight: 700, fontSize: '0.9rem',
@@ -213,14 +221,14 @@ export default function FavoritePage() {
                     >
                       {product.product_name}
                     </div>
-                    <div style={{
+                    <div className="fav-card-meta" style={{
                       fontSize: '0.74rem', color: 'var(--text-muted)',
                       marginBottom: 14, fontWeight: 500
                     }}>
                       {product.concentration} · {product.gender}
                     </div>
 
-                    <div style={{
+                    <div className="fav-card-bottom" style={{
                       display: 'flex', justifyContent: 'space-between',
                       alignItems: 'center',
                       paddingTop: 12, borderTop: '1px solid var(--border-default)'
@@ -236,7 +244,7 @@ export default function FavoritePage() {
                           <span style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-muted)' }}>/ml</span>
                         </div>
                       </div>
-                      <button
+                      <button className="fav-card-btn"
                         onClick={() => handleAddToCart(product)}
                         disabled={addingToCart === product.product_id}
                         style={{

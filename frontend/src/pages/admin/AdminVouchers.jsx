@@ -111,40 +111,40 @@ export default function AdminVouchers() {
   return (
     <div>
       <style>{`
+        .vouchers-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .vouchers-h1 {
+          font-family: var(--font-sans); font-size: 1.8rem;
+          font-weight: 900; letter-spacing: -0.02em;
+          text-transform: uppercase; color: var(--text-primary); margin: 0;
+        }
+        .vouchers-add-btn {
+          display: flex; align-items: center; gap: 8px;
+          padding: 10px 20px;
+          background: var(--accent-red); color: white;
+          border-radius: var(--radius-sm); font-weight: 800;
+          font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+          border: none; cursor: pointer;
+        }
+        .vouchers-table-wrap {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .vouchers-table-wrap table { min-width: 650px; }
+        .vouchers-modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
         @media (max-width: 768px) {
           .vouchers-header {
             flex-direction: column !important;
             align-items: flex-start !important;
             gap: 16px !important;
           }
-          .vouchers-table-wrap {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-          }
-          .vouchers-table-wrap table {
-            min-width: 650px;
-          }
-          .vouchers-modal-grid {
-            grid-template-columns: 1fr !important;
-          }
+          .vouchers-h1 { font-size: 1.3rem !important; }
+          .vouchers-add-btn { width: 100% !important; justify-content: center !important; }
         }
       `}</style>
 
-      <div className="vouchers-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-        <h1 style={{
-          fontFamily: 'var(--font-sans)', fontSize: '1.8rem',
-          fontWeight: 900, letterSpacing: '-0.02em',
-          textTransform: 'uppercase', color: 'var(--text-primary)'
-        }}>VOUCHER</h1>
-        <button onClick={() => openModal()}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 20px',
-            background: 'var(--accent-red)', color: 'white',
-            borderRadius: 'var(--radius-sm)', fontWeight: 800,
-            fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-            border: 'none', cursor: 'pointer'
-          }}>
+      <div className="vouchers-header">
+        <h1 className="vouchers-h1">VOUCHER</h1>
+        <button onClick={() => openModal()} className="vouchers-add-btn">
           <Plus size={14} /> BUAT VOUCHER
         </button>
       </div>
@@ -285,7 +285,7 @@ export default function AdminVouchers() {
             </div>
 
             <form onSubmit={handleSave}>
-              <div className="vouchers-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="vouchers-modal-grid">
                 <div>
                   <label style={labelStyle}>Kode Voucher</label>
                   <input type="text" value={form.code}
@@ -305,7 +305,7 @@ export default function AdminVouchers() {
                 </div>
               </div>
 
-              <div className="vouchers-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="vouchers-modal-grid">
                 <div>
                   <label style={labelStyle}>
                     Nilai {form.type === 'percentage' ? '(%)' : '(Rp)'}
@@ -324,7 +324,7 @@ export default function AdminVouchers() {
                 </div>
               </div>
 
-              <div className="vouchers-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div className="vouchers-modal-grid">
                 <div>
                   <label style={labelStyle}>Min. Pembelian (Rp)</label>
                   <input type="number" value={form.min_purchase}

@@ -112,15 +112,27 @@ export default function SysAdminDashboard() {
   return (
     <div>
       <style>{`
+        .sysadash-header { margin-bottom: 36px; }
+        .sysadash-h1 { font-size: 1.8rem; font-weight: 900; letter-spacing: -0.02em; text-transform: uppercase; margin: 0; }
+        .sysadash-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+        .sysadash-service-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        .sysadash-server-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 768px) {
-          .sysadash-stats-grid { grid-template-columns: 1fr !important; }
-          .sysadash-service-grid { grid-template-columns: 1fr !important; }
-          .sysadash-server-grid { grid-template-columns: 1fr !important; }
+          .sysadash-header { margin-bottom: 20px !important; }
+          .sysadash-h1 { font-size: 1.3rem !important; }
+          .sysadash-stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; margin-bottom: 20px !important; }
+          .sysadash-stats-grid > div { padding: 14px !important; }
+          .sysadash-service-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+          .sysadash-service-grid > div { padding: 12px !important; gap: 10px !important; }
+          .sysadash-stats-grid > :last-child:nth-child(odd),
+          .sysadash-service-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+          .sysadash-server-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
+          .sysadash-section { padding: 18px !important; }
         }
       `}</style>
 
       {/* Header */}
-      <div style={{ marginBottom: 36 }}>
+      <div className="sysadash-header">
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           fontSize: '0.62rem', fontWeight: 800,
@@ -129,17 +141,14 @@ export default function SysAdminDashboard() {
         }}>
           <Shield size={14} /> Administrator Sistem
         </div>
-        <h1 style={{
-          fontSize: '1.8rem', fontWeight: 900,
-          letterSpacing: '-0.02em', textTransform: 'uppercase'
-        }}>DASHBOARD</h1>
+        <h1 className="sysadash-h1">DASHBOARD</h1>
         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 500 }}>
           Status layanan diperbarui otomatis setiap 30 detik
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="sysadash-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
+      <div className="sysadash-stats-grid">
         {[
           {
             label: 'USER AKTIF HARI INI',
@@ -197,7 +206,7 @@ export default function SysAdminDashboard() {
       </div>
 
       {/* Service Status */}
-      <div style={{
+      <div className="sysadash-section" style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-lg)', padding: 28, marginBottom: 20
@@ -208,7 +217,7 @@ export default function SysAdminDashboard() {
           color: 'var(--text-primary)', marginBottom: 20
         }}>STATUS LAYANAN</div>
 
-        <div className="sysadash-service-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        <div className="sysadash-service-grid">
           {serviceCards.map(({ label, icon, status: s, extra, color }) => (
             <div key={label} style={{
               padding: '18px 20px',
@@ -241,7 +250,7 @@ export default function SysAdminDashboard() {
       </div>
 
       {/* Server Info */}
-      <div style={{
+      <div className="sysadash-section" style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-lg)', padding: 28
@@ -254,7 +263,7 @@ export default function SysAdminDashboard() {
         }}>
           <Server size={14} /> INFORMASI SERVER
         </div>
-        <div className="sysadash-server-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="sysadash-server-grid">
           {[
             { label: 'Platform', value: status?.status?.server?.platform },
             { label: 'Node.js Version', value: status?.status?.server?.node_version },

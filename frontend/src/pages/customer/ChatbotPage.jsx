@@ -94,10 +94,15 @@ export default function ChatbotPage() {
       <style>{`
         @media (max-width: 768px) {
           .chat-header { padding: 10px 16px !important; }
-          .chat-messages-area { padding: 0 16px !important; }
-          .chat-suggestions { padding: 0 16px 12px !important; }
-          .chat-input-area { padding: 10px 16px !important; }
-          .chat-bubble { max-width: 90% !important; }
+          .chat-bot-name { font-size: 0.75rem !important; }
+          .chat-bot-status { font-size: 0.6rem !important; }
+          .chat-reset-btn { font-size: 0.55rem !important; padding: 5px 10px !important; }
+          .chat-messages-area { padding: 0 12px !important; }
+          .chat-suggestions { padding: 0 12px 10px !important; flex-wrap: nowrap !important; overflow-x: auto !important; }
+          .chat-suggestion-btn { font-size: 0.62rem !important; padding: 7px 12px !important; white-space: nowrap !important; flex-shrink: 0 !important; }
+          .chat-input-area { padding: 10px 12px !important; }
+          .chat-bubble { max-width: 92% !important; font-size: 0.82rem !important; }
+          .chat-input-box { font-size: 0.82rem !important; }
         }
       `}</style>
 
@@ -121,11 +126,11 @@ export default function ChatbotPage() {
 
         {/* Info */}
         <div style={{ flex: 1 }}>
-          <div style={{
+          <div className="chat-bot-name" style={{
             fontWeight: 900, fontSize: '0.85rem',
             letterSpacing: '0.08em', textTransform: 'uppercase'
           }}>MINCY AI</div>
-          <div style={{
+          <div className="chat-bot-status" style={{
             display: 'flex', alignItems: 'center', gap: 6,
             fontSize: '0.68rem', color: '#22c55e', fontWeight: 700
           }}>
@@ -141,6 +146,7 @@ export default function ChatbotPage() {
         {/* Reset Button */}
         {messages.length > 1 && (
           <button
+            className="chat-reset-btn"
             onClick={() => setShowResetConfirm(true)}
             title="Reset percakapan"
             style={{
@@ -271,7 +277,7 @@ export default function ChatbotPage() {
           }}>COBA TANYAKAN:</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {SUGGESTIONS.map((s, i) => (
-              <button key={i} onClick={() => sendMessage(s)}
+              <button key={i} className="chat-suggestion-btn" onClick={() => sendMessage(s)}
                 style={{
                   padding: '7px 14px',
                   border: '1px solid var(--border-default)',

@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Flame, Star, ChevronRight, Zap, MessageCircle } from 'lucide-react'
+import { ArrowRight, Flame, Star, ChevronRight, Zap, MessageCircle, Heart } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import useAuthStore from '../../store/authStore'
 
 const API_URL = 'http://localhost:5000'
 
@@ -26,7 +27,31 @@ const useInView = (threshold = 0.1) => {
 const ProductCard = ({ product, index }) => {
   const [ref, inView] = useInView()
   const [hovered, setHovered] = useState(false)
+  const [isFav, setIsFav] = useState(false)
+  const [favLoading, setFavLoading] = useState(false)
+  const { isAuthenticated } = useAuthStore()
+  const navigate = useNavigate()
   const hasImage = product.image_filename && product.image_filename !== 'default.png'
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    api.get(`/favorites/check/${product.product_id}`)
+      .then(res => setIsFav(res.data.is_favorite))
+      .catch(() => {})
+  }, [product.product_id, isAuthenticated])
+
+  const handleFav = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isAuthenticated) { toast.error('Login dulu untuk menyimpan favorit'); navigate('/login'); return }
+    setFavLoading(true)
+    try {
+      const res = await api.post('/favorites/toggle', { product_id: product.product_id })
+      setIsFav(res.data.is_favorite)
+      toast.success(res.data.is_favorite ? 'Ditambahkan ke favorit!' : 'Dihapus dari favorit')
+    } catch { toast.error('Gagal') }
+    finally { setFavLoading(false) }
+  }
 
   return (
     <Link to={`/product/${product.product_id}`} ref={ref}
@@ -39,13 +64,13 @@ const ProductCard = ({ product, index }) => {
         transform: inView ? 'translateY(0)' : 'translateY(24px)',
         transition: `opacity 0.5s ease ${index * 0.08}s, transform 0.5s ease ${index * 0.08}s, border-color 0.3s, box-shadow 0.3s`,
         boxShadow: hovered ? '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(240,46,41,0.15)' : 'none',
-        textDecoration: 'none'
+        textDecoration: 'none', position: 'relative'
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       {/* Image */}
-      <div style={{
+      <div className="product-card-img" style={{
         height: 200,
         background: hasImage ? 'var(--bg-elevated)' : 'linear-gradient(135deg, var(--bg-elevated), var(--bg-card))',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -90,6 +115,31 @@ const ProductCard = ({ product, index }) => {
           }}>🧴</div>
         )}
 
+        {/* Heart / Favorite Button */}
+        <button
+          onClick={handleFav}
+          disabled={favLoading}
+          style={{
+            position: 'absolute', top: 10, right: 10, zIndex: 3,
+            width: 32, height: 32, borderRadius: '50%',
+            background: isFav ? 'var(--accent-red)' : 'rgba(6,6,10,0.6)',
+            border: `1px solid ${isFav ? 'var(--accent-red)' : 'rgba(255,255,255,0.15)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: favLoading ? 'not-allowed' : 'pointer',
+            backdropFilter: 'blur(4px)',
+            transition: 'all 0.2s ease',
+            opacity: favLoading ? 0.6 : 1
+          }}
+          onMouseEnter={e => { if (!favLoading) e.currentTarget.style.transform = 'scale(1.15)' }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+        >
+          <Heart
+            size={15}
+            fill={isFav ? 'white' : 'none'}
+            color={isFav ? 'white' : 'rgba(255,255,255,0.85)'}
+          />
+        </button>
+
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
           padding: '10px 14px', zIndex: 2,
@@ -106,20 +156,20 @@ const ProductCard = ({ product, index }) => {
       </div>
 
       {/* Body */}
-      <div style={{ padding: '16px 18px 18px' }}>
-        <div style={{
+      <div className="product-card-body" style={{ padding: '16px 18px 18px' }}>
+        <div className="product-card-brand" style={{
           fontSize: '0.65rem', fontWeight: 800,
           letterSpacing: '0.15em', textTransform: 'uppercase',
           color: 'var(--accent-red)', marginBottom: 6
         }}>{product.brand}</div>
 
-        <div style={{
+        <div className="product-card-name" style={{
           fontWeight: 700, fontSize: '0.9rem',
           color: 'var(--text-primary)', marginBottom: 6,
           lineHeight: 1.3, letterSpacing: '-0.01em'
         }}>{product.product_name}</div>
 
-        <div style={{
+        <div className="product-card-meta" style={{
           fontSize: '0.74rem', color: 'var(--text-muted)',
           marginBottom: 14, fontWeight: 500
         }}>
@@ -137,13 +187,13 @@ const ProductCard = ({ product, index }) => {
               fontSize: '0.65rem', color: 'var(--text-muted)',
               fontWeight: 600, marginBottom: 2, letterSpacing: '0.05em'
             }}>MULAI DARI</div>
-            <div style={{
+            <div className="product-card-price" style={{
               fontWeight: 800, fontSize: '0.9rem',
               color: hovered ? 'var(--accent-red)' : 'var(--text-primary)',
               transition: '200ms ease', letterSpacing: '-0.01em'
             }}>
               {formatRupiah(product.price_1ml)}
-              <span style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-muted)' }}>/ml</span>
+              <span className="product-card-price-label" style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-muted)' }}>/ml</span>
             </div>
           </div>
           {product.longevity_display && (
@@ -241,20 +291,47 @@ export default function HomePage() {
     <div style={{ paddingTop: 'var(--navbar-height)', background: 'var(--bg-primary)' }}>
       <style>{`
         @media (max-width: 768px) {
-          .home-hero-section { padding: 0 16px !important; }
-          .home-stats-section { padding: 48px 16px !important; }
-          .home-stats-grid { grid-template-columns: 1fr !important; }
-          .home-stats-grid > div {
-            border-radius: var(--radius-lg) !important;
-            border-bottom: 1px solid var(--border-default) !important;
-          }
-          .home-section-pad { padding: 0 16px 48px !important; }
-          .home-section-header { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
-          .home-new-section { padding: 48px 16px !important; }
-          .home-cats-section { padding: 48px 16px !important; }
-          .home-ai-section { padding: 0 16px 48px !important; }
-          .home-ai-inner { padding: 32px 24px !important; flex-direction: column !important; }
-          .home-trust-badges { gap: 16px !important; }
+          /* Hero */
+          .home-hero-section { padding: 0 16px !important; min-height: 80vh !important; }
+          .home-hero-h1 { font-size: 2rem !important; line-height: 1.05 !important; margin-bottom: 16px !important; }
+          .home-hero-sub { font-size: 0.82rem !important; margin-bottom: 28px !important; }
+          .home-hero-ctas { gap: 10px !important; }
+          .home-hero-ctas button, .home-hero-ctas a { padding: 12px 20px !important; font-size: 0.7rem !important; }
+          .home-hero-orb { display: none !important; }
+          /* Stats */
+          .home-stats-section { padding: 32px 16px !important; }
+          .home-stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+          .home-stats-grid > div { padding: 16px !important; }
+          .home-stats-num { font-size: 1.6rem !important; }
+          /* Sections */
+          .home-section-pad { padding: 0 16px 36px !important; }
+          .home-section-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+          .home-section-title { font-size: 1.2rem !important; }
+          .home-new-section { padding: 36px 16px !important; }
+          .home-cats-section { padding: 36px 16px !important; }
+          .home-cats-section-title { font-size: 1.2rem !important; }
+          /* AI Banner */
+          .home-ai-section { padding: 0 16px 36px !important; }
+          .home-ai-inner { padding: 24px 18px !important; flex-direction: column !important; gap: 20px !important; }
+          .home-ai-title { font-size: 1.2rem !important; }
+          .home-ai-desc { font-size: 0.8rem !important; }
+          .home-ai-btn { width: 100% !important; justify-content: center !important; padding: 12px 20px !important; font-size: 0.72rem !important; }
+          .home-trust-badges { gap: 12px !important; flex-wrap: wrap !important; }
+          .home-trust-badge { font-size: 0.72rem !important; padding: 8px 12px !important; }
+          /* Product grids */
+          .home-product-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+          .home-product-grid .product-card-brand { font-size: 0.52rem !important; }
+          .home-product-grid .product-card-name { font-size: 0.78rem !important; line-height: 1.2 !important; }
+          .home-product-grid .product-card-meta { font-size: 0.62rem !important; margin-bottom: 10px !important; }
+          .home-product-grid .product-card-body { padding: 10px 10px 12px !important; }
+          .home-product-grid .product-card-img { height: 130px !important; }
+          .home-product-grid .product-card-price { font-size: 0.78rem !important; }
+          .home-product-grid .product-card-price-label { font-size: 0.58rem !important; }
+          /* Categories */
+          .home-cats-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
+          .home-cats-grid > a, .home-cats-grid > div { padding: 14px 8px !important; }
+          .home-cats-icon { font-size: 1.4rem !important; }
+          .home-cats-label { font-size: 0.6rem !important; }
         }
       `}</style>
 
@@ -321,7 +398,7 @@ export default function HomePage() {
             </div>
 
             {/* Headline */}
-            <h1 style={{
+            <h1 className="home-hero-h1" style={{
               fontFamily: 'var(--font-sans)',
               fontSize: 'clamp(2.8rem, 6.5vw, 5rem)',
               fontWeight: 900,
@@ -348,7 +425,7 @@ export default function HomePage() {
             </h1>
 
             {/* Subtitle */}
-            <p style={{
+            <p className="home-hero-sub" style={{
               fontSize: '0.95rem', color: 'var(--text-secondary)',
               lineHeight: 1.9, marginBottom: 44, maxWidth: 480,
               fontWeight: 400,
@@ -361,7 +438,7 @@ export default function HomePage() {
             </p>
 
             {/* CTAs */}
-            <div style={{
+            <div className="home-hero-ctas" style={{
               display: 'flex', gap: 14, flexWrap: 'wrap',
               opacity: heroVisible ? 1 : 0,
               transform: heroVisible ? 'translateY(0)' : 'translateY(20px)',
@@ -519,7 +596,7 @@ export default function HomePage() {
                 transform: statsInView ? 'translateY(0)' : 'translateY(20px)',
                 transition: `all 0.6s ease ${i * 0.15}s`
               }}>
-                <div style={{
+                <div className="home-stats-num" style={{
                   fontSize: '3rem', fontWeight: 900,
                   color: 'var(--accent-red)', marginBottom: 8,
                   letterSpacing: '-0.04em', lineHeight: 1
@@ -562,7 +639,7 @@ export default function HomePage() {
                   color: 'var(--accent-red)'
                 }}>Terlaris</span>
               </div>
-              <h2 style={{
+              <h2 className="home-section-title" style={{
                 fontSize: 'clamp(1.6rem, 3vw, 2.2rem)',
                 fontWeight: 900, letterSpacing: '-0.03em',
                 textTransform: 'uppercase'
@@ -582,7 +659,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div style={{
+          <div className="home-product-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
             gap: 20
@@ -640,13 +717,13 @@ export default function HomePage() {
                 }}>AI-POWERED</span>
               </div>
 
-              <h2 style={{
+              <h2 className="home-ai-title" style={{
                 fontSize: 'clamp(1.4rem, 3vw, 2rem)',
                 fontWeight: 900, letterSpacing: '-0.03em',
                 textTransform: 'uppercase', marginBottom: 12
               }}>BINGUNG PILIH PARFUM?</h2>
 
-              <p style={{
+              <p className="home-ai-desc" style={{
                 color: 'var(--text-secondary)', fontSize: '0.88rem',
                 lineHeight: 1.8, fontWeight: 400
               }}>
@@ -706,7 +783,7 @@ export default function HomePage() {
                   color: 'var(--accent-red)'
                 }}>Terbaru</span>
               </div>
-              <h2 style={{
+              <h2 className="home-section-title" style={{
                 fontSize: 'clamp(1.6rem, 3vw, 2.2rem)',
                 fontWeight: 900, letterSpacing: '-0.03em',
                 textTransform: 'uppercase'
@@ -722,7 +799,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div style={{
+          <div className="home-product-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
             gap: 20
@@ -746,7 +823,7 @@ export default function HomePage() {
               letterSpacing: '0.25em', textTransform: 'uppercase',
               color: 'var(--accent-red)', marginBottom: 12
             }}>Jelajahi</div>
-            <h2 style={{
+            <h2 className="home-cats-section-title" style={{
               fontSize: 'clamp(1.6rem, 3vw, 2.2rem)',
               fontWeight: 900, letterSpacing: '-0.03em',
               textTransform: 'uppercase', marginBottom: 10
@@ -758,7 +835,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div style={{
+          <div className="home-cats-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
             gap: 12
@@ -796,8 +873,8 @@ export default function HomePage() {
                   e.currentTarget.style.background = 'var(--bg-card)'
                   e.currentTarget.style.boxShadow = 'none'
                 }}>
-                <div style={{ fontSize: '1.8rem', marginBottom: 10 }}>{icon}</div>
-                <div style={{
+                <div className="home-cats-icon" style={{ fontSize: '1.8rem', marginBottom: 10 }}>{icon}</div>
+                <div className="home-cats-label" style={{
                   fontSize: '0.68rem', fontWeight: 800,
                   letterSpacing: '0.1em', textTransform: 'uppercase',
                   color: 'var(--text-secondary)'

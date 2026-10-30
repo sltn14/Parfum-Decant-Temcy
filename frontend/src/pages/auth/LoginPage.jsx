@@ -55,9 +55,17 @@ export default function LoginPage() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-primary)' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .login-right-panel { display: none !important; }
+          .login-left-panel { padding: 32px 20px !important; }
+          .login-h1 { font-size: 1.5rem !important; }
+          .login-form-inner { max-width: 100% !important; }
+        }
+      `}</style>
 
       {/* Left Panel */}
-      <div style={{
+      <div className="login-left-panel" style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '48px 32px', position: 'relative'
       }}>
@@ -66,7 +74,7 @@ export default function LoginPage() {
           background: 'radial-gradient(ellipse at 30% 50%, rgba(240,46,41,0.08) 0%, transparent 60%)'
         }} />
 
-        <div style={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1 }}>
+        <div className="login-form-inner" style={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1 }}>
 
           {/* Logo */}
           <Link to="/" style={{
@@ -94,7 +102,7 @@ export default function LoginPage() {
 
           {/* Heading */}
           <div style={{ marginBottom: 36 }}>
-            <h1 style={{
+            <h1 className="login-h1" style={{
               fontSize: '2rem', fontWeight: 900,
               letterSpacing: '-0.03em', textTransform: 'uppercase', marginBottom: 8
             }}>MASUK</h1>
@@ -263,7 +271,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right Panel */}
-      <div style={{
+      <div className="login-right-panel" style={{
         width: 480, background: 'var(--bg-card)',
         borderLeft: '1px solid var(--border-default)',
         display: 'flex', flexDirection: 'column',

@@ -117,13 +117,25 @@ export default function OrderDetailPage() {
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
       <style>{`
         @media (max-width: 768px) {
-          .od-outer-pad { padding: 24px 16px !important; }
-          .od-header-row { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
-          .od-main-grid { grid-template-columns: 1fr !important; }
+          .od-outer-pad { padding: 20px 16px !important; }
+          .od-h1 { font-size: 1.1rem !important; }
+          .od-status-badge { font-size: 0.55rem !important; padding: 4px 10px !important; }
+          .od-header-row { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
+          .od-main-grid { grid-template-columns: 1fr !important; gap: 14px !important; }
           .od-summary { position: static !important; }
-          .od-steps-wrap { padding: 16px !important; overflow-x: auto !important; }
-          .od-steps-inner { min-width: 360px; }
-          .od-step-label { font-size: 0.48rem !important; }
+          .od-card { padding: 16px !important; }
+          .od-section-title { font-size: 0.68rem !important; }
+          .od-steps-wrap { padding: 12px 10px !important; overflow: visible !important; }
+          .od-steps-inner { min-width: unset !important; width: 100% !important; }
+          .od-step-circle { width: 24px !important; height: 24px !important; }
+          .od-step-circle svg { width: 10px !important; height: 10px !important; }
+          .od-step-label { font-size: 0.4rem !important; letter-spacing: 0.04em !important; }
+          .od-step-line { margin: 0 4px 14px !important; }
+          .od-item-row { gap: 10px !important; }
+          .od-item-img { width: 52px !important; height: 52px !important; }
+          .od-item-name { font-size: 0.8rem !important; }
+          .od-item-meta { font-size: 0.65rem !important; }
+          .od-total { font-size: 1.1rem !important; }
         }
       `}</style>
       <div className="od-outer-pad" style={{ maxWidth: 960, margin: '0 auto', padding: '48px 32px' }}>
@@ -152,7 +164,7 @@ export default function OrderDetailPage() {
               letterSpacing: '0.22em', textTransform: 'uppercase',
               color: 'var(--accent-red)', marginBottom: 8
             }}>Detail Pesanan</div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.02em', marginBottom: 8 }}>
+            <h1 className="od-h1" style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.02em', marginBottom: 8 }}>
               {order.order_code}
             </h1>
             <div style={{
@@ -165,7 +177,7 @@ export default function OrderDetailPage() {
               })}
             </div>
           </div>
-          <span style={{
+          <span className="od-status-badge" style={{
             padding: '6px 16px',
             background: status.bg, color: status.color,
             border: `1px solid ${status.border}`,
@@ -188,7 +200,7 @@ export default function OrderDetailPage() {
                   flex: i < STEPS.length - 1 ? 1 : 'none'
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
-                    <div style={{
+                    <div className="od-step-circle" style={{
                       width: 32, height: 32, borderRadius: '50%',
                       background: i + 1 <= currentStep ? 'var(--accent-red)' : 'var(--bg-elevated)',
                       border: `1px solid ${i + 1 <= currentStep ? 'var(--accent-red)' : 'var(--border-default)'}`,
@@ -209,7 +221,7 @@ export default function OrderDetailPage() {
                     }}>{step}</span>
                   </div>
                   {i < STEPS.length - 1 && (
-                    <div style={{
+                    <div className="od-step-line" style={{
                       flex: 1, height: 1, margin: '0 8px 18px',
                       background: i + 1 < currentStep ? 'var(--accent-red)' : 'var(--border-default)',
                       transition: '300ms ease'
@@ -402,12 +414,12 @@ export default function OrderDetailPage() {
               }}>PRODUK DIPESAN</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 {order.items?.map((item, i) => (
-                  <div key={i} style={{
+                  <div key={i} className="od-item-row" style={{
                     display: 'flex', gap: 14, alignItems: 'center',
                     padding: '14px 0',
                     borderBottom: i < order.items.length - 1 ? '1px solid var(--border-default)' : 'none'
                   }}>
-                    <div style={{
+                    <div className="od-item-img" style={{
                       width: 48, height: 48, flexShrink: 0,
                       background: 'var(--bg-elevated)',
                       borderRadius: 'var(--radius-sm)',
@@ -421,12 +433,12 @@ export default function OrderDetailPage() {
                         letterSpacing: '0.1em', textTransform: 'uppercase',
                         color: 'var(--accent-red)', marginBottom: 3
                       }}>{item.brand}</div>
-                      <div style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: 2 }}>{item.product_name}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                      <div className="od-item-name" style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: 2 }}>{item.product_name}</div>
+                      <div className="od-item-meta" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                         {item.size_ml}ml × {item.quantity}
                       </div>
                     </div>
-                    <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>
+                    <div className="od-total" style={{ fontWeight: 800, fontSize: '0.88rem' }}>
                       {formatRupiah(item.price * item.quantity)}
                     </div>
                   </div>
@@ -451,7 +463,7 @@ export default function OrderDetailPage() {
                   { label: 'Penerima', value: order.shipping_name },
                   { label: 'No. HP', value: order.shipping_phone },
                   order.delivery_method !== 'pickup' && { label: 'Kota', value: order.shipping_city },
-                  order.delivery_method !== 'pickup' && { label: 'Alamat', value: order.shipping_address },
+                  { label: order.delivery_method === 'pickup' ? 'Lokasi Pickup' : 'Alamat', value: order.shipping_address },
                   order.shipping_notes && { label: 'Catatan', value: order.shipping_notes }
                 ].filter(Boolean).map(({ label, value }) => (
                   <div key={label} style={{ display: 'flex', gap: 16 }}>

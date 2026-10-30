@@ -89,6 +89,7 @@ app.use('/api/addresses', require('./modules/addresses/address.routes'));
 app.use('/api/shipping', require('./modules/shipping/shipping.routes'));
 app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
 app.use('/api/tracking', require('./modules/tracking/tracking.routes'));
+app.use('/api/stores', require('./modules/stores/store.routes'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Decant Temcy API is running' });
@@ -114,6 +115,15 @@ const startServer = async () => {
     const SystemLog = require('./modules/sysadmin/system_log.model');
     await SystemConfig.sync({ alter: false });
     await SystemLog.sync({ alter: false });
+
+    // Store pickup: buat tabel stores, tambah kolom di orders, isi store default kalau kosong
+    const Store = require('./modules/stores/store.model');
+    await Store.sync({ alter: false });
+    await sequelize.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_store_id INTEGER');
+    if ((await Store.count()) === 0) {
+      await Store.create({ name: 'Decant Temcy Semarang', city: 'Semarang', address: 'Semarang' });
+      console.log('Store default dibuat. Ubah alamat lengkapnya di Admin > Cabang Toko.');
+    }
 
     httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err) {

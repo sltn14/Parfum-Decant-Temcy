@@ -32,6 +32,7 @@ import AdminReviews from './pages/admin/AdminReviews'
 import AdminVouchers from './pages/admin/AdminVouchers'
 import AdminInventory from './pages/admin/AdminInventory'
 import AdminAIInsight from './pages/admin/AdminAIInsight'
+import AdminStores from './pages/admin/AdminStores'
 
 // SysAdmin Pages
 import SysAdminDashboard from './pages/sysadmin/SysAdminDashboard'
@@ -119,6 +120,7 @@ function App() {
         <Route path="sales-report" element={<AdminSalesReport />} />
         <Route path="inventory" element={<AdminInventory />} />
         <Route path="ai-insight" element={<AdminAIInsight />} />
+        <Route path="stores" element={<AdminStores />} />
       </Route>
 
       {/* Administrator Sistem */}

@@ -191,17 +191,35 @@ export default function SysAdminUsers() {
   return (
     <div>
       <style>{`
+        .sysusers-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .sysusers-h1 { font-weight: 900; font-size: 1.8rem; letter-spacing: -0.02em; text-transform: uppercase; margin: 0; }
+        .sysusers-add-btn {
+          display: flex; align-items: center; gap: 8px;
+          padding: 11px 20px; background: #8b5cf6; color: white;
+          border-radius: var(--radius-sm); font-weight: 800;
+          font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+          border: none; cursor: pointer; box-shadow: 0 4px 14px rgba(139,92,246,0.3);
+        }
+        .sysusers-search-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .sysusers-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .sysusers-table-wrap table { min-width: 700px; }
         @media (max-width: 768px) {
-          .sysusers-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .sysusers-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; margin-bottom: 20px !important; }
+          .sysusers-h1 { font-size: 1.3rem !important; }
+          .sysusers-add-btn { width: 100% !important; justify-content: center !important; }
           .sysusers-search-row { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
           .sysusers-search-row > div:first-child { max-width: 100% !important; }
-          .sysusers-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-          .sysusers-table-wrap table { min-width: 700px; }
+          .sysusers-modal-overlay { padding: 0 !important; align-items: flex-end !important; }
+          .sysusers-modal-box {
+            max-width: 100% !important; padding: 20px !important;
+            max-height: 92vh; overflow-y: auto;
+            border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important;
+          }
         }
       `}</style>
 
       {/* Header */}
-      <div className="sysusers-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      <div className="sysusers-header">
         <div>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 6,
@@ -211,27 +229,15 @@ export default function SysAdminUsers() {
           }}>
             <Shield size={12} /> Administrator Sistem
           </div>
-          <h1 style={{
-            fontWeight: 900, fontSize: '1.8rem',
-            letterSpacing: '-0.02em', textTransform: 'uppercase'
-          }}>MANAJEMEN AKUN</h1>
+          <h1 className="sysusers-h1">MANAJEMEN AKUN</h1>
         </div>
-        <button onClick={openAddModal}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '11px 20px',
-            background: '#8b5cf6', color: 'white',
-            borderRadius: 'var(--radius-sm)', fontWeight: 800,
-            fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-            border: 'none', cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(139,92,246,0.3)'
-          }}>
+        <button onClick={openAddModal} className="sysusers-add-btn">
           <Plus size={14} /> TAMBAH AKUN
         </button>
       </div>
 
       {/* Search */}
-      <div className="sysusers-search-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="sysusers-search-row">
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           background: 'var(--bg-card)',
@@ -398,8 +404,8 @@ export default function SysAdminUsers() {
 
       {/* Modal Tambah/Edit */}
       {showModal && (
-        <div style={modalOverlay}>
-          <div style={modalBox}>
+        <div className="sysusers-modal-overlay" style={modalOverlay}>
+          <div className="sysusers-modal-box" style={modalBox}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <h2 style={{ fontWeight: 900, fontSize: '1rem', textTransform: 'uppercase' }}>
                 {editUser ? 'EDIT AKUN' : 'TAMBAH AKUN BARU'}
@@ -485,8 +491,8 @@ export default function SysAdminUsers() {
 
       {/* Modal Reset Password */}
       {showResetModal && (
-        <div style={modalOverlay}>
-          <div style={modalBox}>
+        <div className="sysusers-modal-overlay" style={modalOverlay}>
+          <div className="sysusers-modal-box" style={modalBox}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ fontWeight: 900, fontSize: '1rem', textTransform: 'uppercase' }}>
                 RESET PASSWORD
@@ -550,8 +556,8 @@ export default function SysAdminUsers() {
 
       {/* Modal Toggle Status (Re-auth) */}
       {showToggleModal && (
-        <div style={modalOverlay}>
-          <div style={{ ...modalBox, maxWidth: 400, textAlign: 'center' }}>
+        <div className="sysusers-modal-overlay" style={modalOverlay}>
+          <div className="sysusers-modal-box" style={{ ...modalBox, maxWidth: 400, textAlign: 'center' }}>
             <div style={{
               width: 52, height: 52, borderRadius: '50%',
               background: toggleTarget?.is_active ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
@@ -600,8 +606,8 @@ export default function SysAdminUsers() {
 
       {/* Modal Set Role (Re-auth) */}
       {showRoleModal && (
-        <div style={modalOverlay}>
-          <div style={modalBox}>
+        <div className="sysusers-modal-overlay" style={modalOverlay}>
+          <div className="sysusers-modal-box" style={modalBox}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <h2 style={{ fontWeight: 900, fontSize: '1rem', textTransform: 'uppercase' }}>UBAH ROLE</h2>
               <button onClick={() => setShowRoleModal(false)} style={{ color: 'var(--text-muted)', cursor: 'pointer', background: 'none', border: 'none' }}>

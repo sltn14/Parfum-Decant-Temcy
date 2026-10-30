@@ -160,12 +160,19 @@ export default function AddressPage() {
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
       <style>{`
         @media (max-width: 768px) {
-          .addr-outer-pad { padding: 24px 16px !important; }
-          .addr-header-row { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
-          .addr-header-row button { width: 100% !important; justify-content: center !important; }
-          .addr-card-actions { flex-wrap: wrap !important; }
-          .addr-modal-inner { padding: 24px 20px !important; }
+          .addr-outer-pad { padding: 20px 16px !important; }
+          .addr-h1 { font-size: 1.3rem !important; }
+          .addr-header-row { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
+          .addr-header-row button { width: 100% !important; justify-content: center !important; font-size: 0.7rem !important; }
+          .addr-card { padding: 16px !important; }
+          .addr-card-name { font-size: 0.85rem !important; }
+          .addr-card-actions { flex-wrap: wrap !important; gap: 6px !important; }
+          .addr-card-actions button { font-size: 0.65rem !important; padding: 6px 12px !important; }
+          .addr-modal-inner { padding: 20px 16px !important; }
+          .addr-modal-title { font-size: 1rem !important; }
           .addr-form-grid { grid-template-columns: 1fr !important; }
+          .addr-form-label { font-size: 0.65rem !important; }
+          .addr-form-input { font-size: 0.82rem !important; padding: 10px 12px !important; }
         }
       `}</style>
       <div className="addr-outer-pad" style={{ maxWidth: 900, margin: '0 auto', padding: '48px 32px' }}>
@@ -180,7 +187,7 @@ export default function AddressPage() {
               letterSpacing: '0.22em', textTransform: 'uppercase',
               color: 'var(--accent-red)', marginBottom: 10
             }}>Pengiriman</div>
-            <h1 style={{
+            <h1 className="addr-h1" style={{
               fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
               fontWeight: 900, letterSpacing: '-0.03em', textTransform: 'uppercase'
             }}>ALAMAT SAYA</h1>

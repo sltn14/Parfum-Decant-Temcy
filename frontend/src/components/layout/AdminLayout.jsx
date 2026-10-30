@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
+import { useResponsiveTables, RESPONSIVE_TABLE_CSS } from './responsiveTables'
 import { Toaster } from 'react-hot-toast'
-import { LayoutDashboard, Package, ShoppingBag, BarChart2, Star, Tag, Sparkles, Archive, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingBag, BarChart2, Star, Tag, Sparkles, Archive, MapPin, LogOut, Menu, X } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import api from '../../api/axios'
 
@@ -12,6 +13,7 @@ const navLinks = [
   { to: '/admin/orders', icon: <ShoppingBag size={16} />, label: 'PESANAN' },
   { to: '/admin/reviews', icon: <Star size={16} />, label: 'REVIEWS' },
   { to: '/admin/vouchers', icon: <Tag size={16} />, label: 'VOUCHER' },
+  { to: '/admin/stores', icon: <MapPin size={16} />, label: 'CABANG TOKO' },
   { to: '/admin/sales-report', icon: <BarChart2 size={16} />, label: 'LAPORAN' },
   { to: '/admin/ai-insight', icon: <Sparkles size={16} />, label: 'AI INSIGHT' },
 ]
@@ -20,6 +22,8 @@ export default function AdminLayout() {
   const location = useLocation()
   const { user, clearAuth } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const mainRef = useRef(null)
+  useResponsiveTables(mainRef)
 
   const isActive = (to, exact = false) => {
     if (exact) return location.pathname === to
@@ -125,8 +129,9 @@ export default function AdminLayout() {
         @media (max-width: 768px) {
           .admin-sidebar-desktop { display: none !important; }
           .admin-topbar { display: flex !important; }
-          .admin-main { margin-left: 0 !important; padding: 80px 16px 32px !important; }
+          .admin-main { margin-left: 0 !important; padding: 68px 12px 24px !important; min-width: 0 !important; }
         }
+        ${RESPONSIVE_TABLE_CSS}
         @media (min-width: 769px) {
           .admin-sidebar-mobile-overlay { display: none !important; }
           .admin-sidebar-mobile-drawer { display: none !important; }
@@ -208,7 +213,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="admin-main" style={{
+      <main ref={mainRef} className="admin-main rt-scope" style={{
         flex: 1, marginLeft: 240,
         padding: '36px 36px',
         minHeight: '100vh', overflowX: 'hidden'

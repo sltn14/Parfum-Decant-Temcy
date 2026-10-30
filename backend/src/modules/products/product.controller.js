@@ -129,6 +129,10 @@ const updateStock = async (req, res) => {
     const product = await Product.findByPk(req.params.id);
     if (!product) return res.status(404).json({ message: 'Produk tidak ditemukan' });
 
+    // stock_ml otomatis = total ml dari semua vial (Inventaris jadi sumber utama)
+    const { mlFields } = require('../../utils/stockMl');
+    Object.assign(updates, mlFields({ ...product.get(), ...updates }, product.stock_ml_initial));
+
     await product.update(updates);
     return res.status(200).json({ message: 'Stok berhasil diperbarui', product });
   } catch (err) {

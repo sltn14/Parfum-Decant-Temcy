@@ -176,14 +176,37 @@ ${cancelRate > 20 ? `⚠️ Tingkat pembatalan ${cancelRate}% cukup tinggi. Pert
   return (
     <div>
       <style>{`
+        .ai-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 36px; }
+        .ai-h1 {
+          font-weight: 900; font-size: 1.8rem;
+          letter-spacing: -0.02em; text-transform: uppercase;
+          color: var(--text-primary); margin: 0;
+        }
+        .ai-generate-btn {
+          display: flex; align-items: center; gap: 8px;
+          padding: 12px 22px;
+          font-weight: 800; font-size: 0.72rem;
+          letter-spacing: 0.12em; text-transform: uppercase;
+          border-radius: var(--radius-sm); border: none;
+          transition: all 0.3s ease;
+        }
+        .ai-stats-grid {
+          display: grid; grid-template-columns: repeat(4, 1fr);
+          gap: 14px; margin-bottom: 32px;
+        }
+        .ai-insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         @media (max-width: 768px) {
           .ai-header {
             flex-direction: column !important;
             align-items: flex-start !important;
             gap: 16px !important;
+            margin-bottom: 20px !important;
           }
+          .ai-h1 { font-size: 1.3rem !important; }
+          .ai-generate-btn { width: 100% !important; justify-content: center !important; }
           .ai-stats-grid {
             grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
           }
           .ai-insight-grid {
             grid-template-columns: 1fr !important;
@@ -192,18 +215,14 @@ ${cancelRate > 20 ? `⚠️ Tingkat pembatalan ${cancelRate}% cukup tinggi. Pert
       `}</style>
 
       {/* Header */}
-      <div className="ai-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 36 }}>
+      <div className="ai-header">
         <div>
           <div style={{
             fontSize: '0.62rem', fontWeight: 800,
             letterSpacing: '0.22em', textTransform: 'uppercase',
             color: 'var(--accent-red)', marginBottom: 8
           }}>Analitik Cerdas</div>
-          <h1 style={{
-            fontWeight: 900, fontSize: '1.8rem',
-            letterSpacing: '-0.02em', textTransform: 'uppercase',
-            color: 'var(--text-primary)'
-          }}>AI INSIGHT</h1>
+          <h1 className="ai-h1">AI INSIGHT</h1>
           {lastGenerated && (
             <div style={{
               fontSize: '0.72rem', color: 'var(--text-muted)',
@@ -214,16 +233,12 @@ ${cancelRate > 20 ? `⚠️ Tingkat pembatalan ${cancelRate}% cukup tinggi. Pert
           )}
         </div>
         <button onClick={generateInsight} disabled={generating}
+          className="ai-generate-btn"
           style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '12px 22px',
             background: generating ? 'var(--border-hover)' : 'var(--accent-red)',
-            color: 'white', fontWeight: 800,
-            fontSize: '0.72rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-            borderRadius: 'var(--radius-sm)', border: 'none',
+            color: 'white',
             cursor: generating ? 'not-allowed' : 'pointer',
             boxShadow: generating ? 'none' : '0 4px 14px rgba(240,46,41,0.3)',
-            transition: 'all 0.3s ease'
           }}>
           {generating
             ? <><RefreshCw size={14} style={{ animation: 'rotate-slow 1s linear infinite' }} /> GENERATING...</>
@@ -233,10 +248,7 @@ ${cancelRate > 20 ? `⚠️ Tingkat pembatalan ${cancelRate}% cukup tinggi. Pert
       </div>
 
       {/* Stats summary cards */}
-      <div className="ai-stats-grid" style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 14, marginBottom: 32
-      }}>
+      <div className="ai-stats-grid">
         {[
           { label: 'TOTAL REVENUE', value: formatRupiah(stats?.dashboard?.stats?.totalRevenue || 0), color: '#22c55e', icon: <TrendingUp size={18} /> },
           { label: 'TOTAL PESANAN', value: `${stats?.dashboard?.stats?.totalOrders || 0} order`, color: '#3b82f6', icon: <ShoppingBag size={18} /> },
@@ -315,7 +327,7 @@ ${cancelRate > 20 ? `⚠️ Tingkat pembatalan ${cancelRate}% cukup tinggi. Pert
           </button>
         </div>
       ) : (
-        <div className="ai-insight-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="ai-insight-grid">
           {sections.map((section, i) => {
             const color = sectionColors[section.title] || 'var(--accent-red)'
             const icon = sectionIcons[section.title] || <Sparkles size={16} />

@@ -98,34 +98,39 @@ export default function SysAdminConfig() {
   return (
     <div>
       <style>{`
+        .syscfg-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; }
+        .syscfg-h1 { font-weight: 900; font-size: 1.8rem; letter-spacing: -0.02em; text-transform: uppercase; margin: 0; }
+        .syscfg-save-btn {
+          display: flex; align-items: center; gap: 8px;
+          padding: 11px 22px; color: white; font-weight: 800;
+          font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+          border-radius: var(--radius-sm); border: none;
+        }
+        .syscfg-smtp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         @media (max-width: 768px) {
-          .syscfg-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
+          .syscfg-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; margin-bottom: 20px !important; }
+          .syscfg-h1 { font-size: 1.3rem !important; }
+          .syscfg-save-btn { width: 100% !important; justify-content: center !important; }
           .syscfg-smtp-grid { grid-template-columns: 1fr !important; }
           .syscfg-section-header { flex-direction: column !important; align-items: flex-start !important; gap: 12px !important; }
           .syscfg-section-header > div:last-child { width: 100% !important; justify-content: flex-start !important; }
+          .syscfg-section { padding: 18px !important; }
         }
       `}</style>
 
       {/* Header */}
-      <div className="syscfg-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 32 }}>
+      <div className="syscfg-header">
         <div>
           <div style={{
             fontSize: '0.62rem', fontWeight: 800,
             letterSpacing: '0.22em', textTransform: 'uppercase',
             color: '#8b5cf6', marginBottom: 8
           }}>Administrator Sistem</div>
-          <h1 style={{ fontWeight: 900, fontSize: '1.8rem', letterSpacing: '-0.02em', textTransform: 'uppercase' }}>
-            KONFIGURASI SISTEM
-          </h1>
+          <h1 className="syscfg-h1">KONFIGURASI SISTEM</h1>
         </div>
-        <button onClick={handleSave} disabled={saving}
+        <button onClick={handleSave} disabled={saving} className="syscfg-save-btn"
           style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '11px 22px',
             background: saving ? 'var(--border-hover)' : '#8b5cf6',
-            color: 'white', fontWeight: 800,
-            fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-            borderRadius: 'var(--radius-sm)', border: 'none',
             cursor: saving ? 'not-allowed' : 'pointer',
             boxShadow: saving ? 'none' : '0 4px 14px rgba(139,92,246,0.3)'
           }}>
@@ -166,7 +171,7 @@ export default function SysAdminConfig() {
           </div>
         </div>
 
-        <div className="syscfg-smtp-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="syscfg-smtp-grid">
           <div>
             <label style={labelStyle}>SMTP Host</label>
             <input type="text" value={form.SMTP_HOST || ''}
@@ -260,8 +265,8 @@ export default function SysAdminConfig() {
               <Bot size={18} />
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>AI Service</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>Endpoint layanan chatbot rekomendasi</div>
+              <div style={{ fontWeight: 800, fontSize: '0.88rem' }}>AI Service (Gemini)</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>API key Google Gemini untuk chatbot rekomendasi</div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -285,13 +290,19 @@ export default function SysAdminConfig() {
         </div>
 
         <div>
-          <label style={labelStyle}>AI Service Endpoint URL</label>
-          <input type="url" value={form.AI_ENDPOINT_URL || ''}
-            onChange={e => setForm(prev => ({ ...prev, AI_ENDPOINT_URL: e.target.value }))}
-            placeholder="http://localhost:8000/chat" style={inputStyle}
-            onFocus={e => e.target.style.borderColor = '#8b5cf6'}
-            onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
-          />
+          <label style={labelStyle}>Gemini API Key</label>
+          <div style={{ position: 'relative' }}>
+            <input type={showPass.GEMINI_API_KEY ? 'text' : 'password'} value={form.GEMINI_API_KEY || ''}
+              onChange={e => setForm(prev => ({ ...prev, GEMINI_API_KEY: e.target.value }))}
+              placeholder="Tempel API key dari Google AI Studio" style={{ ...inputStyle, paddingRight: 44 }}
+              onFocus={e => e.target.style.borderColor = '#8b5cf6'}
+              onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+            />
+            <button type="button" onClick={() => toggleShowPass('GEMINI_API_KEY')}
+              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', cursor: 'pointer', background: 'none', border: 'none' }}>
+              {showPass.GEMINI_API_KEY ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
         </div>
 
         <div style={{
@@ -301,7 +312,7 @@ export default function SysAdminConfig() {
           borderRadius: 'var(--radius-sm)',
           fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400
         }}>
-          💡 Endpoint AI Service digunakan oleh Chatbot Rekomendasi Mincy AI. Pastikan format URL sudah benar sebelum menyimpan.
+          💡 Chatbot Mincy AI memakai model <strong>gemini-2.5-flash</strong>. Tidak perlu URL endpoint, cukup API key. Kalau kolom ini dikosongkan, sistem pakai <code>GEMINI_API_KEY</code> dari file .env server. Setelah simpan, klik TEST KONEKSI.
         </div>
       </div>
     </div>

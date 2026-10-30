@@ -31,25 +31,43 @@ export default function Footer() {
         @media (max-width: 768px) {
           .footer-grid {
             grid-template-columns: 1fr 1fr !important;
-            gap: 32px !important;
-            margin-bottom: 40px !important;
+            gap: 24px !important;
+            margin-bottom: 32px !important;
           }
           .footer-brand-col {
             grid-column: 1 / -1;
           }
+          .footer-brand-col p {
+            font-size: 0.78rem !important;
+            max-width: 100% !important;
+          }
+          .footer-col-title {
+            font-size: 0.6rem !important;
+            margin-bottom: 12px !important;
+          }
+          .footer-col-link {
+            font-size: 0.75rem !important;
+            margin-bottom: 8px !important;
+          }
           .footer-bottom {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 12px !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 10px !important;
+          }
+          .footer-bottom p, .footer-bottom span {
+            font-size: 0.7rem !important;
           }
           .footer-main-padding {
-            padding: 40px 20px 32px !important;
+            padding: 32px 16px 24px !important;
+          }
+          .footer-badge {
+            display: none !important;
           }
         }
         @media (max-width: 480px) {
           .footer-grid {
-            grid-template-columns: 1fr !important;
-            gap: 24px !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 20px !important;
           }
         }
       `}</style>
@@ -157,7 +175,7 @@ export default function Footer() {
 
           {/* Navigasi */}
           <div>
-            <div style={{
+            <div className="footer-col-title" style={{
               fontSize: '0.68rem', fontWeight: 800,
               letterSpacing: '0.2em', textTransform: 'uppercase',
               color: 'var(--text-primary)', marginBottom: 20
@@ -167,7 +185,7 @@ export default function Footer() {
               { to: '/catalog', label: 'Katalog' },
               { to: '/chatbot', label: 'Konsultasi' }
             ].map(({ to, label }) => (
-              <Link key={to} to={to} style={{
+              <Link key={to} to={to} className="footer-col-link" style={{
                 display: 'block', color: 'var(--text-muted)',
                 fontSize: '0.85rem', marginBottom: 12,
                 fontWeight: 500, transition: 'color 0.2s ease', textDecoration: 'none'
@@ -180,7 +198,7 @@ export default function Footer() {
 
           {/* Akun */}
           <div>
-            <div style={{
+            <div className="footer-col-title" style={{
               fontSize: '0.68rem', fontWeight: 800,
               letterSpacing: '0.2em', textTransform: 'uppercase',
               color: 'var(--text-primary)', marginBottom: 20
@@ -193,7 +211,7 @@ export default function Footer() {
               { to: '/favorites', label: 'Favorit' },
               { to: '/addresses', label: 'Alamat' }
             ].map(({ to, label }) => (
-              <Link key={to} to={to} style={{
+              <Link key={to} to={to} className="footer-col-link" style={{
                 display: 'block', color: 'var(--text-muted)',
                 fontSize: '0.85rem', marginBottom: 12,
                 fontWeight: 500, transition: 'color 0.2s ease', textDecoration: 'none'
@@ -206,7 +224,7 @@ export default function Footer() {
 
           {/* Layanan */}
           <div>
-            <div style={{
+            <div className="footer-col-title" style={{
               fontSize: '0.68rem', fontWeight: 800,
               letterSpacing: '0.2em', textTransform: 'uppercase',
               color: 'var(--text-primary)', marginBottom: 20
@@ -216,7 +234,7 @@ export default function Footer() {
               { to: '/chatbot', label: 'Konsultasi Parfum' },
               { to: '/register', label: 'Bergabung' }
             ].map(({ to, label }) => (
-              <Link key={to} to={to} style={{
+              <Link key={to} to={to} className="footer-col-link" style={{
                 display: 'block', color: 'var(--text-muted)',
                 fontSize: '0.85rem', marginBottom: 12,
                 fontWeight: 500, transition: 'color 0.2s ease', textDecoration: 'none'
@@ -227,7 +245,7 @@ export default function Footer() {
             ))}
 
             {/* Badge */}
-            <div style={{
+            <div className="footer-badge" style={{
               marginTop: 20, padding: '10px 14px',
               background: 'rgba(240,46,41,0.06)',
               border: '1px solid rgba(240,46,41,0.15)',

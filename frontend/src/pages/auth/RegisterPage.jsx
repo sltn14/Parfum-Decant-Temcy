@@ -61,8 +61,15 @@ export default function RegisterPage() {
       minHeight: '100vh', display: 'flex',
       background: 'var(--bg-primary)'
     }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .register-right-panel { display: none !important; }
+          .register-left-panel { padding: 32px 20px !important; }
+          .register-h1 { font-size: 1.5rem !important; }
+        }
+      `}</style>
       {/* Left — Form */}
-      <div style={{
+      <div className="register-left-panel" style={{
         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '48px 32px', position: 'relative', overflowY: 'auto'
       }}>
@@ -91,7 +98,7 @@ export default function RegisterPage() {
 
           {/* Heading */}
           <div style={{ marginBottom: 32 }}>
-            <h1 style={{
+            <h1 className="register-h1" style={{
               fontSize: '2rem', fontWeight: 900,
               letterSpacing: '-0.03em', textTransform: 'uppercase', marginBottom: 8
             }}>
@@ -334,7 +341,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Right Panel */}
-      <div style={{
+      <div className="register-right-panel" style={{
         width: 480, background: 'var(--bg-card)',
         borderLeft: '1px solid var(--border-default)',
         display: 'flex', flexDirection: 'column',

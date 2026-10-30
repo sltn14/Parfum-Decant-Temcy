@@ -5,6 +5,7 @@ const CartItem = require('../cart/cart_item.model');
 const Product = require('../products/product.model');
 const { snap } = require('../../config/midtrans');
 const { sendOrderEmail } = require('../../utils/emailHelper');
+const { restoreStockMl, adjustVials } = require('../../utils/stockMl');
 
 // Generate order code
 const generateOrderCode = () => {
@@ -21,7 +22,7 @@ const checkout = async (req, res) => {
       shipping_name, shipping_phone, shipping_address, shipping_city, shipping_notes,
       delivery_method = 'delivery',
       courier, courier_service, shipping_cost = 0,
-      voucher_code, address_id
+      voucher_code, address_id, pickup_store_id
     } = req.body;
 
     if (delivery_method === 'delivery' && !address_id) {
@@ -37,6 +38,39 @@ const checkout = async (req, res) => {
 
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({ message: 'Keranjang kosong' });
+    }
+
+    // Cek stok vial cukup per produk + ukuran
+    const need = {};
+    for (const item of cart.items) {
+      const k = `${item.product_id}:${parseInt(item.size_ml)}`;
+      need[k] = (need[k] || 0) + item.quantity;
+    }
+    for (const [k, qty] of Object.entries(need)) {
+      const [productId, size] = k.split(':');
+      const p = await Product.findByPk(productId);
+      const have = p ? (parseInt(p[`stock_${size}ml`]) || 0) : 0;
+      if (!p || qty > have) {
+        return res.status(400).json({
+          message: `Stok ${p ? p.product_name : 'produk'} ${size}ml tidak cukup (sisa ${have} pcs)`
+        });
+      }
+    }
+
+    // Pickup: tentukan store tujuan (dicek sebelum voucher dipakai)
+    let pickupStore = null;
+    if (delivery_method === 'pickup') {
+      const Store = require('../stores/store.model');
+      pickupStore = pickup_store_id
+        ? await Store.findOne({ where: { store_id: pickup_store_id, is_active: true } })
+        : await Store.findOne({ where: { is_active: true }, order: [['store_id', 'ASC']] });
+      if (!pickupStore) {
+        return res.status(400).json({
+          message: pickup_store_id
+            ? 'Store pickup tidak ditemukan atau sedang tidak aktif'
+            : 'Belum ada store aktif untuk pickup'
+        });
+      }
     }
 
     const subtotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -95,8 +129,8 @@ const checkout = async (req, res) => {
       shippingData = {
         shipping_name: user.full_name,
         shipping_phone: user.phone || '-',
-        shipping_address: 'Pickup di toko',
-        shipping_city: 'Semarang',
+        shipping_address: `Pickup di ${pickupStore.name} — ${pickupStore.address}`,
+        shipping_city: pickupStore.city,
         shipping_notes: ''
       };
     }
@@ -107,6 +141,7 @@ const checkout = async (req, res) => {
       total_price,
       ...shippingData,
       delivery_method,
+      pickup_store_id: pickupStore ? pickupStore.store_id : null,
       courier: delivery_method === 'delivery' ? courier : null,
       courier_service: delivery_method === 'delivery' ? courier_service : null,
       shipping_cost: delivery_method === 'delivery' ? parseInt(shipping_cost) : 0,
@@ -125,6 +160,9 @@ const checkout = async (req, res) => {
         quantity: item.quantity,
         price: item.price
       });
+
+      // Kurangi stok vial ukuran yang dibeli, stock_ml ikut dihitung ulang otomatis
+      await adjustVials(product, item.size_ml, -item.quantity, item.quantity);
     }
 
     await CartItem.destroy({ where: { cart_id: cart.cart_id } });
@@ -181,6 +219,7 @@ const cancelOrder = async (req, res) => {
     }
 
     await order.update({ status: 'cancelled' });
+    await restoreStockMl(order.items);
 
     // Notifikasi in-app
     try {
@@ -329,7 +368,13 @@ const updateOrderStatus = async (req, res) => {
     });
     if (!order) return res.status(404).json({ message: 'Order tidak ditemukan' });
 
+    const previousStatus = order.status;
     await order.update({ status });
+
+    // Admin membatalkan order -> kembalikan stok ml (sekali saja)
+    if (status === 'cancelled' && previousStatus !== 'cancelled') {
+      await restoreStockMl(order.items);
+    }
 
     const Notification = require('../notification/notification.model');
     const statusMessages = {

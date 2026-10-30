@@ -124,12 +124,35 @@ export default function AdminUsers() {
   return (
     <div>
       <style>{`
+        .users-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .users-search-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .users-h1 {
+          font-weight: 900; font-size: 1.8rem;
+          letter-spacing: -0.02em; text-transform: uppercase;
+          color: var(--text-primary); margin: 0;
+        }
+        .users-add-btn {
+          display: flex; align-items: center; gap: 8px;
+          padding: 11px 20px;
+          background: var(--accent-red); color: white;
+          border-radius: var(--radius-sm); font-weight: 800;
+          font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+          border: none; cursor: pointer;
+          box-shadow: 0 4px 14px rgba(240,46,41,0.3);
+        }
+        .users-table-wrap {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .users-table-wrap table { min-width: 650px; }
         @media (max-width: 768px) {
           .users-header {
             flex-direction: column !important;
             align-items: flex-start !important;
             gap: 16px !important;
           }
+          .users-h1 { font-size: 1.3rem !important; }
+          .users-add-btn { width: 100% !important; justify-content: center !important; }
           .users-search-row {
             flex-direction: column !important;
             align-items: stretch !important;
@@ -138,46 +161,26 @@ export default function AdminUsers() {
           .users-search-row > div:first-child {
             max-width: 100% !important;
           }
-          .users-table-wrap {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-          }
-          .users-table-wrap table {
-            min-width: 650px;
-          }
         }
       `}</style>
 
       {/* Header */}
-      <div className="users-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      <div className="users-header">
         <div>
           <div style={{
             fontSize: '0.62rem', fontWeight: 800,
             letterSpacing: '0.22em', textTransform: 'uppercase',
             color: 'var(--accent-red)', marginBottom: 8
           }}>Kelola</div>
-          <h1 style={{
-            fontWeight: 900, fontSize: '1.8rem',
-            letterSpacing: '-0.02em', textTransform: 'uppercase',
-            color: 'var(--text-primary)'
-          }}>MANAJEMEN USER</h1>
+          <h1 className="users-h1">MANAJEMEN USER</h1>
         </div>
-        <button onClick={openAddModal}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '11px 20px',
-            background: 'var(--accent-red)', color: 'white',
-            borderRadius: 'var(--radius-sm)', fontWeight: 800,
-            fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-            border: 'none', cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(240,46,41,0.3)'
-          }}>
+        <button onClick={openAddModal} className="users-add-btn">
           <Plus size={14} /> TAMBAH AKUN
         </button>
       </div>
 
       {/* Search + Total */}
-      <div className="users-search-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="users-search-row">
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10,
           background: 'var(--bg-card)',

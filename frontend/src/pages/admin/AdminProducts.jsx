@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Edit, Trash2, X, Save, Upload } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, X, Save, Upload, Droplets } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import ConfirmModal from '../../components/common/ConfirmModal'
@@ -14,7 +14,63 @@ const EMPTY_FORM = {
   top_notes: '', middle_notes: '', base_notes: '', main_accords: '',
   longevity_display: '', description: '', pros: '', cons: '',
   price_1ml: '', price_2ml: '', price_3ml: '', price_5ml: '',
-  stock_ml: '', is_active: true
+  stock_ml: '', stock_ml_initial: '', is_active: true
+}
+
+// Komponen progress bar stok ml
+const StockMlBar = ({ stockMl, stockMlInitial, compact = false }) => {
+  const current = parseFloat(stockMl) || 0
+  const initial = parseFloat(stockMlInitial) || parseFloat(stockMl) || 0
+  const pct = initial > 0 ? Math.min(100, (current / initial) * 100) : (current > 0 ? 100 : 0)
+
+  let barColor = '#22c55e'
+  let label = 'AMAN'
+  if (pct <= 20) { barColor = '#ef4444'; label = 'KRITIS' }
+  else if (pct <= 40) { barColor = '#f59e0b'; label = 'MENIPIS' }
+
+  if (compact) {
+    return (
+      <div className="stock-ml-compact">
+        <div className="stock-ml-compact-row">
+          <Droplets size={10} style={{ color: barColor, flexShrink: 0 }} />
+          <span className="stock-ml-value" style={{ color: barColor }}>{current} ml</span>
+          {initial > 0 && current !== initial && (
+            <span className="stock-ml-initial">/ {initial} ml</span>
+          )}
+        </div>
+        <div className="stock-ml-bar-track">
+          <div className="stock-ml-bar-fill" style={{ width: `${pct}%`, background: barColor }} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="stock-ml-full">
+      <div className="stock-ml-full-row">
+        <div className="stock-ml-full-left">
+          <Droplets size={13} style={{ color: barColor }} />
+          <span className="stock-ml-full-value" style={{ color: barColor }}>{current} ml tersisa</span>
+        </div>
+        <span className="stock-ml-full-badge" style={{
+          background: `${barColor}18`,
+          border: `1px solid ${barColor}30`,
+          color: barColor
+        }}>{label}</span>
+      </div>
+      {initial > 0 && (
+        <>
+          <div className="stock-ml-bar-track-full">
+            <div className="stock-ml-bar-fill" style={{ width: `${pct}%`, background: barColor }} />
+          </div>
+          <div className="stock-ml-full-meta">
+            <span>{Math.round(pct)}% dari {initial} ml</span>
+            {current !== initial && <span>Terpakai: {Math.max(0, initial - current)} ml</span>}
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 export default function AdminProducts() {
@@ -72,6 +128,7 @@ export default function AdminProducts() {
         price_3ml: product.price_3ml || '',
         price_5ml: product.price_5ml || '',
         stock_ml: product.stock_ml || '',
+        stock_ml_initial: product.stock_ml_initial || product.stock_ml || '',
         is_active: product.is_active
       })
     } else {
@@ -84,12 +141,14 @@ export default function AdminProducts() {
   const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Ukuran foto maksimal 5MB')
-      return
-    }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Ukuran foto maksimal 5MB'); return }
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
+  }
+
+  // stock_ml_initial = baseline progress bar. stock_ml dihitung otomatis dari Inventaris
+  const handleStockInitialChange = (val) => {
+    setForm(prev => ({ ...prev, stock_ml_initial: val }))
   }
 
   const handleSubmit = async (e) => {
@@ -97,7 +156,10 @@ export default function AdminProducts() {
     setSaving(true)
     try {
       const formData = new FormData()
-      Object.entries(form).forEach(([k, v]) => {
+      const submitForm = { ...form }
+      // stock_ml dihitung server dari stok vial (Inventaris), jangan dikirim
+      delete submitForm.stock_ml
+      Object.entries(submitForm).forEach(([k, v]) => {
         if (v !== '' && v !== null && v !== undefined) formData.append(k, v)
       })
       if (imageFile) formData.append('image', imageFile)
@@ -128,11 +190,8 @@ export default function AdminProducts() {
       toast.success('Produk berhasil dihapus!')
       setDeleteTarget(null)
       fetchProducts()
-    } catch {
-      toast.error('Gagal menghapus')
-    } finally {
-      setDeleting(false)
-    }
+    } catch { toast.error('Gagal menghapus') }
+    finally { setDeleting(false) }
   }
 
   const inputStyle = {
@@ -142,7 +201,7 @@ export default function AdminProducts() {
     borderRadius: 'var(--radius-sm)',
     color: 'var(--text-primary)', fontSize: '0.82rem',
     outline: 'none', fontFamily: 'var(--font-sans)', fontWeight: 500,
-    transition: 'border-color 0.2s ease'
+    transition: 'border-color 0.2s ease', boxSizing: 'border-box'
   }
 
   const labelStyle = {
@@ -159,68 +218,278 @@ export default function AdminProducts() {
   return (
     <div>
       <style>{`
+        /* === ADMIN PRODUCTS === */
+        .ap-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 32px;
+        }
+        .ap-label-tag {
+          font-size: 0.62rem;
+          font-weight: 800;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
+          color: var(--accent-red);
+          margin-bottom: 8px;
+        }
+        .ap-h1 {
+          font-weight: 900;
+          font-size: 1.8rem;
+          letter-spacing: -0.02em;
+          text-transform: uppercase;
+          color: var(--text-primary);
+          margin: 0;
+        }
+        .ap-add-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 11px 20px;
+          background: var(--accent-red);
+          color: white;
+          border-radius: var(--radius-sm);
+          font-weight: 800;
+          font-size: 0.68rem;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(240,46,41,0.3);
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .ap-search-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+        .ap-search-box {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: var(--bg-card);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-sm);
+          padding: 10px 14px;
+          max-width: 360px;
+          flex: 1;
+          transition: border-color 0.2s ease;
+        }
+        .ap-count {
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          font-weight: 700;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .ap-table-wrap {
+          background: var(--bg-card);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-lg);
+          overflow: hidden;
+        }
+        .ap-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .ap-th {
+          padding: 11px 16px;
+          text-align: left;
+          font-size: 0.58rem;
+          font-weight: 800;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          background: var(--bg-elevated);
+        }
+        .ap-td {
+          padding: 10px 16px;
+          border-top: 1px solid var(--border-default);
+        }
+        /* Stok ML styles */
+        .stock-ml-compact {
+          min-width: 90px;
+        }
+        .stock-ml-compact-row {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          margin-bottom: 4px;
+        }
+        .stock-ml-value {
+          font-size: 0.78rem;
+          font-weight: 800;
+          letter-spacing: -0.01em;
+        }
+        .stock-ml-initial {
+          font-size: 0.62rem;
+          color: var(--text-muted);
+          font-weight: 500;
+        }
+        .stock-ml-bar-track {
+          width: 100%;
+          height: 3px;
+          background: var(--bg-elevated);
+          border-radius: 99px;
+          overflow: hidden;
+        }
+        .stock-ml-bar-fill {
+          height: 100%;
+          border-radius: 99px;
+          transition: width 0.5s ease;
+        }
+        .stock-ml-full {
+          margin-bottom: 4px;
+        }
+        .stock-ml-full-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+        .stock-ml-full-left {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .stock-ml-full-value {
+          font-size: 0.88rem;
+          font-weight: 800;
+        }
+        .stock-ml-full-badge {
+          font-size: 0.55rem;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          padding: 3px 8px;
+          border-radius: var(--radius-xs);
+        }
+        .stock-ml-bar-track-full {
+          width: 100%;
+          height: 6px;
+          background: var(--bg-elevated);
+          border-radius: 99px;
+          overflow: hidden;
+          margin-bottom: 6px;
+        }
+        .stock-ml-full-meta {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.62rem;
+          color: var(--text-muted);
+          font-weight: 500;
+        }
+        /* Modal */
+        .ap-modal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          background: rgba(0,0,0,0.85);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          backdrop-filter: blur(8px);
+        }
+        .ap-modal {
+          background: var(--bg-card);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-lg);
+          width: 100%;
+          max-width: 720px;
+          max-height: 92vh;
+          overflow: auto;
+          padding: 32px;
+          animation: scaleIn 0.25s ease;
+        }
+        .ap-modal-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+        }
+        .ap-stock-section {
+          background: var(--bg-elevated);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-sm);
+          padding: 16px;
+          margin-top: 4px;
+        }
+        .ap-stock-section-title {
+          font-size: 0.6rem;
+          font-weight: 800;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          color: var(--accent-red);
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .ap-stock-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+
+        /* === MOBILE (≤768px) === */
         @media (max-width: 768px) {
-          .products-header {
+          .ap-header {
             flex-direction: column !important;
             align-items: flex-start !important;
             gap: 16px !important;
+            margin-bottom: 20px !important;
           }
-          .products-search-row {
+          .ap-h1 {
+            font-size: 1.3rem !important;
+          }
+          .ap-add-btn {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+          .ap-search-row {
             flex-direction: column !important;
             align-items: stretch !important;
           }
-          .products-search-row > div:first-child {
+          .ap-search-box {
             max-width: 100% !important;
           }
-          .products-table-wrap {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
+          .ap-count {
+            text-align: right !important;
           }
-          .products-table-wrap table {
-            min-width: 700px;
+          .ap-modal-overlay {
+            padding: 12px !important;
+            align-items: flex-end !important;
           }
-          .products-modal-grid {
+          .ap-modal {
+            padding: 20px 16px !important;
+            border-radius: var(--radius-md) var(--radius-md) 0 0 !important;
+            max-height: 95vh !important;
+          }
+          .ap-modal-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .ap-stock-grid {
             grid-template-columns: 1fr !important;
           }
         }
       `}</style>
 
-      <div className="products-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+      {/* Header */}
+      <div className="ap-header">
         <div>
-          <div style={{
-            fontSize: '0.62rem', fontWeight: 800,
-            letterSpacing: '0.22em', textTransform: 'uppercase',
-            color: 'var(--accent-red)', marginBottom: 8
-          }}>Kelola</div>
-          <h1 style={{
-            fontWeight: 900, fontSize: '1.8rem',
-            letterSpacing: '-0.02em', textTransform: 'uppercase',
-            color: 'var(--text-primary)'
-          }}>MANAJEMEN PRODUK</h1>
+          <div className="ap-label-tag">Kelola</div>
+          <h1 className="ap-h1">MANAJEMEN PRODUK</h1>
         </div>
-        <button onClick={() => openModal()}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '11px 20px',
-            background: 'var(--accent-red)', color: 'white',
-            borderRadius: 'var(--radius-sm)', fontWeight: 800,
-            fontSize: '0.68rem', letterSpacing: '0.12em', textTransform: 'uppercase',
-            border: 'none', cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(240,46,41,0.3)'
-          }}>
+        <button onClick={() => openModal()} className="ap-add-btn">
           <Plus size={14} /> TAMBAH PRODUK
         </button>
       </div>
 
       {/* Search + Total */}
-      <div className="products-search-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '10px 14px', maxWidth: 360, flex: 1
-        }}
+      <div className="ap-search-row">
+        <div className="ap-search-box"
           onFocusCapture={e => e.currentTarget.style.borderColor = 'rgba(240,46,41,0.3)'}
           onBlurCapture={e => e.currentTarget.style.borderColor = 'var(--border-default)'}
         >
@@ -241,27 +510,18 @@ export default function AdminProducts() {
             </button>
           )}
         </div>
-        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>
+        <div className="ap-count">
           <span style={{ color: 'var(--text-primary)', fontWeight: 900 }}>{total}</span> produk
         </div>
       </div>
 
       {/* Table */}
-      <div className="products-table-wrap" style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-default)',
-        borderRadius: 'var(--radius-lg)', overflow: 'hidden'
-      }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="ap-table-wrap">
+        <table className="ap-table">
           <thead>
-            <tr style={{ background: 'var(--bg-elevated)' }}>
-              {['Foto', 'Produk', 'Brand', 'Tipe', 'Harga 1ml', 'Stok', 'Status', 'Aksi'].map(h => (
-                <th key={h} style={{
-                  padding: '11px 16px', textAlign: 'left',
-                  fontSize: '0.58rem', fontWeight: 800,
-                  color: 'var(--text-muted)', textTransform: 'uppercase',
-                  letterSpacing: '0.12em'
-                }}>{h}</th>
+            <tr>
+              {['Foto', 'Produk', 'Brand', 'Tipe', 'Harga 1ml', 'Sisa Stok', 'Status', 'Aksi'].map(h => (
+                <th key={h} className="ap-th">{h}</th>
               ))}
             </tr>
           </thead>
@@ -279,15 +539,13 @@ export default function AdminProducts() {
                 </td>
               </tr>
             ) : products.map((product) => (
-              <tr key={product.product_id} style={{
-                borderTop: '1px solid var(--border-default)',
-                transition: 'background 0.15s ease'
-              }}
+              <tr key={product.product_id}
+                style={{ transition: 'background 0.15s ease' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 {/* Foto */}
-                <td style={{ padding: '10px 16px' }}>
+                <td className="ap-td">
                   <div style={{
                     width: 44, height: 44, borderRadius: 'var(--radius-sm)',
                     background: 'var(--bg-elevated)',
@@ -296,8 +554,7 @@ export default function AdminProducts() {
                     overflow: 'hidden', flexShrink: 0
                   }}>
                     {product.image_filename ? (
-                      <img
-                        src={`${API_URL}/uploads/products/${product.image_filename}`}
+                      <img src={`${API_URL}/uploads/products/${product.image_filename}`}
                         alt={product.product_name}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
@@ -306,29 +563,37 @@ export default function AdminProducts() {
                     )}
                   </div>
                 </td>
-
-                <td style={{ padding: '10px 16px' }}>
+                <td className="ap-td">
                   <div style={{ fontWeight: 700, fontSize: '0.85rem', letterSpacing: '-0.01em' }}>
                     {product.product_name}
                   </div>
                 </td>
-                <td style={{ padding: '10px 16px' }}>
+                <td className="ap-td">
                   <span style={{
                     fontSize: '0.62rem', fontWeight: 800,
                     letterSpacing: '0.08em', textTransform: 'uppercase',
                     color: 'var(--accent-red)'
                   }}>{product.brand}</span>
                 </td>
-                <td style={{ padding: '10px 16px', fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                <td className="ap-td" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                   {product.concentration}
                 </td>
-                <td style={{ padding: '10px 16px', fontSize: '0.85rem', fontWeight: 700 }}>
+                <td className="ap-td" style={{ fontSize: '0.85rem', fontWeight: 700 }}>
                   {formatRupiah(product.price_1ml)}
                 </td>
-                <td style={{ padding: '10px 16px', fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                  {product.stock_ml} ml
+                {/* Kolom Sisa Stok dengan progress bar */}
+                <td className="ap-td">
+                  {(product.stock_ml !== null && product.stock_ml !== undefined && product.stock_ml !== '') ? (
+                    <StockMlBar
+                      stockMl={product.stock_ml}
+                      stockMlInitial={product.stock_ml_initial || product.stock_ml}
+                      compact
+                    />
+                  ) : (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>—</span>
+                  )}
                 </td>
-                <td style={{ padding: '10px 16px' }}>
+                <td className="ap-td">
                   <span style={{
                     padding: '3px 10px', borderRadius: 'var(--radius-xs)',
                     fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.08em',
@@ -339,7 +604,7 @@ export default function AdminProducts() {
                     {product.is_active ? 'AKTIF' : 'NONAKTIF'}
                   </span>
                 </td>
-                <td style={{ padding: '10px 16px' }}>
+                <td className="ap-td">
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onClick={() => openModal(product)}
                       style={{
@@ -402,29 +667,17 @@ export default function AdminProducts() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal Tambah/Edit */}
       {showModal && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 1000,
-          background: 'rgba(0,0,0,0.85)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 24, backdropFilter: 'blur(8px)'
-        }}>
-          <div style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-lg)',
-            width: '100%', maxWidth: 720,
-            maxHeight: '92vh', overflow: 'auto',
-            padding: 32, animation: 'scaleIn 0.25s ease'
-          }}>
+        <div className="ap-modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="ap-modal">
             <div style={{
               display: 'flex', justifyContent: 'space-between',
               alignItems: 'center', marginBottom: 24
             }}>
               <h2 style={{
                 fontWeight: 900, fontSize: '0.95rem',
-                textTransform: 'uppercase', letterSpacing: '-0.01em'
+                textTransform: 'uppercase', letterSpacing: '-0.01em', margin: 0
               }}>
                 {editProduct ? 'EDIT PRODUK' : 'TAMBAH PRODUK BARU'}
               </h2>
@@ -455,7 +708,6 @@ export default function AdminProducts() {
                   onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-red)'}
                   onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-hover)'}
                 >
-                  {/* Preview */}
                   <div style={{
                     width: 56, height: 56, borderRadius: 'var(--radius-sm)',
                     background: 'var(--bg-input)',
@@ -471,30 +723,67 @@ export default function AdminProducts() {
                       <span style={{ fontSize: '1.5rem' }}>🧴</span>
                     )}
                   </div>
-
                   <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontSize: '0.78rem', fontWeight: 700,
-                      color: 'var(--text-secondary)', marginBottom: 3
-                    }}>
-                      {imagePreview
-                        ? 'Foto dipilih — klik untuk ganti'
-                        : editProduct?.image_filename
-                          ? 'Ada foto — klik untuk ganti'
-                          : 'Klik untuk pilih foto produk'
-                      }
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 3 }}>
+                      {imagePreview ? 'Foto dipilih — klik untuk ganti' : editProduct?.image_filename ? 'Ada foto — klik untuk ganti' : 'Klik untuk pilih foto produk'}
                     </div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 400 }}>
                       JPG, PNG, WEBP · Maks 5MB
                     </div>
                   </div>
-
                   <Upload size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                 </div>
               </div>
 
+              {/* Stok ML Section — di atas form utama supaya keliatan duluan */}
+              <div className="ap-stock-section" style={{ marginBottom: 20 }}>
+                <div className="ap-stock-section-title">
+                  <Droplets size={12} /> Stok Parfum (ml)
+                </div>
+                <div className="ap-stock-grid">
+                  {editProduct && (
+                    <div>
+                      <label style={labelStyle}>Sisa ML Sekarang (Otomatis)</label>
+                      <input type="number" value={form.stock_ml || 0} readOnly disabled
+                        style={{ ...inputStyle, opacity: 0.6, cursor: 'not-allowed' }}
+                      />
+                      <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 500 }}>
+                        Dari Inventaris: {[1, 2, 3, 5].map(s => `${s}ml×${editProduct?.[`stock_${s}ml`] || 0}`).join(' + ')}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={labelStyle}>Kapasitas / Stok ML Awal (Referensi)</label>
+                    <input type="number" value={form.stock_ml_initial}
+                      onChange={e => handleStockInitialChange(e.target.value)}
+                      placeholder="Contoh: 100"
+                      style={inputStyle}
+                      onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                      onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+                    />
+                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 500 }}>
+                      {editProduct
+                        ? 'Total ml awal untuk hitung persentase progress bar'
+                        : 'Total ml awal parfum. Isi stok vial per ukuran di menu Inventaris setelah produk dibuat'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview progress bar di modal (hanya saat edit) */}
+                {editProduct && (form.stock_ml || form.stock_ml_initial) && (
+                  <div style={{ marginTop: 14, padding: '12px 14px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-default)' }}>
+                    <div style={{ fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.1em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Preview</div>
+                    <StockMlBar
+                      stockMl={form.stock_ml || 0}
+                      stockMlInitial={form.stock_ml_initial || form.stock_ml}
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Form fields grid */}
-              <div className="products-modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="ap-modal-grid">
                 {[
                   { label: 'Brand', name: 'brand', required: true },
                   { label: 'Nama Produk', name: 'product_name', required: true },
@@ -504,7 +793,6 @@ export default function AdminProducts() {
                   { label: 'Harga 2ml', name: 'price_2ml', type: 'number' },
                   { label: 'Harga 3ml', name: 'price_3ml', type: 'number' },
                   { label: 'Harga 5ml', name: 'price_5ml', type: 'number' },
-                  { label: 'Stok (ml)', name: 'stock_ml', type: 'number' },
                 ].map(({ label, name, type = 'text', required, placeholder }) => (
                   <div key={name}>
                     <label style={labelStyle}>{label}</label>
@@ -593,6 +881,7 @@ export default function AdminProducts() {
           </div>
         </div>
       )}
+
       <ConfirmModal
         show={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}

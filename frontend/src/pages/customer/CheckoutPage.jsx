@@ -28,6 +28,24 @@ export default function CheckoutPage() {
   const [courier, setCourier] = useState('')
   const [courierServices, setCourierServices] = useState([])
   const [selectedService, setSelectedService] = useState(null)
+
+  // Store pickup (cabang)
+  const [stores, setStores] = useState([])
+  const [selectedStoreId, setSelectedStoreId] = useState(null)
+  const [storesLoading, setStoresLoading] = useState(false)
+
+  useEffect(() => {
+    if (deliveryMethod !== 'pickup' || stores.length > 0) return
+    setStoresLoading(true)
+    api.get('/stores')
+      .then(res => {
+        const list = res.data.stores || []
+        setStores(list)
+        if (list.length > 0) setSelectedStoreId(prev => prev ?? list[0].store_id)
+      })
+      .catch(() => toast.error('Gagal memuat daftar store'))
+      .finally(() => setStoresLoading(false))
+  }, [deliveryMethod])
   const [loadingCost, setLoadingCost] = useState(false)
   const [voucherCode, setVoucherCode] = useState('')
   const [appliedVoucher, setAppliedVoucher] = useState(null)
@@ -188,10 +206,14 @@ export default function CheckoutPage() {
           return
         }
       } else {
+        if (!selectedStoreId) {
+          toast.error('Pilih store tempat pickup terlebih dahulu')
+          setSubmitting(false)
+          return
+        }
         payload.shipping_name = user?.full_name || 'Pickup'
         payload.shipping_phone = user?.phone || '-'
-        payload.shipping_address = 'Pickup di toko'
-        payload.shipping_city = 'Semarang'
+        payload.pickup_store_id = selectedStoreId
         payload.shipping_cost = 0
       }
 
@@ -243,115 +265,357 @@ export default function CheckoutPage() {
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
       <style>{`
+        .checkout-page-wrap {
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 48px 32px;
+        }
+        .checkout-back-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 32px;
+          color: var(--text-muted);
+          cursor: pointer;
+          font-size: 0.72rem;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          transition: color 0.2s ease;
+          background: none;
+          border: none;
+        }
+        .checkout-back-btn:hover { color: var(--text-primary); }
+        .checkout-label-tag {
+          font-size: 0.65rem;
+          font-weight: 800;
+          letter-spacing: 0.22em;
+          text-transform: uppercase;
+          color: var(--accent-red);
+          margin-bottom: 10px;
+        }
+        .checkout-h1 {
+          font-size: clamp(1.8rem, 4vw, 2.5rem);
+          font-weight: 900;
+          letter-spacing: -0.03em;
+          text-transform: uppercase;
+          margin: 0 0 40px 0;
+        }
+        .checkout-main-grid {
+          display: grid;
+          grid-template-columns: 1fr 380px;
+          gap: 32px;
+          align-items: start;
+        }
+        .checkout-left-col {
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        .checkout-section-card {
+          background: var(--bg-card);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-lg);
+          padding: 24px;
+        }
+        .checkout-section-title {
+          font-size: 0.65rem;
+          font-weight: 800;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+          margin-bottom: 16px;
+          padding-bottom: 14px;
+          border-bottom: 1px solid var(--border-default);
+        }
+        .checkout-method-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .checkout-method-btn {
+          padding: 16px;
+          border-radius: var(--radius-md);
+          cursor: pointer;
+          text-align: left;
+          transition: all 0.2s ease;
+        }
+        .checkout-method-icon {
+          margin-bottom: 8px;
+        }
+        .checkout-method-label {
+          font-weight: 800;
+          font-size: 0.78rem;
+          letter-spacing: 0.1em;
+          margin-bottom: 4px;
+        }
+        .checkout-method-desc {
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          font-weight: 400;
+        }
+        .checkout-manual-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .checkout-courier-row {
+          display: flex;
+          gap: 10px;
+          margin-bottom: 16px;
+        }
+        .checkout-courier-btn {
+          flex: 1;
+          padding: 10px;
+          border-radius: var(--radius-sm);
+          font-weight: 800;
+          cursor: pointer;
+          font-size: 0.72rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          transition: all 0.2s ease;
+        }
+        .checkout-address-name {
+          font-weight: 700;
+          font-size: 0.85rem;
+        }
+        .checkout-address-detail {
+          color: var(--text-muted);
+          font-size: 0.78rem;
+        }
+        .checkout-summary-panel {
+          background: var(--bg-card);
+          border: 1px solid var(--border-default);
+          border-radius: var(--radius-lg);
+          padding: 28px;
+          position: sticky;
+          top: calc(var(--navbar-height) + 24px);
+        }
+        .checkout-order-item {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          margin-bottom: 10px;
+        }
+        .checkout-order-item-name {
+          font-size: 0.75rem;
+          font-weight: 700;
+          margin-bottom: 1px;
+        }
+        .checkout-summary-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.82rem;
+          margin-bottom: 10px;
+        }
+        .checkout-total-label {
+          font-size: 0.62rem;
+          font-weight: 800;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+        }
+        .checkout-total {
+          font-size: 1.4rem;
+          font-weight: 900;
+          color: var(--accent-red);
+          letter-spacing: -0.02em;
+        }
+        .checkout-submit {
+          width: 100%;
+          padding: 15px;
+          color: white;
+          font-weight: 800;
+          font-size: 0.78rem;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          border-radius: var(--radius-sm);
+          border: none;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          transition: all 0.3s ease;
+        }
+
+        /* === MOBILE === */
         @media (max-width: 768px) {
+          .checkout-page-wrap {
+            padding: 20px 14px !important;
+          }
+          .checkout-back-btn {
+            font-size: 0.6rem !important;
+            margin-bottom: 16px !important;
+          }
+          .checkout-h1 {
+            font-size: 1.25rem !important;
+            margin-bottom: 20px !important;
+          }
           .checkout-main-grid {
             grid-template-columns: 1fr !important;
+            gap: 16px !important;
           }
-          .checkout-summary {
-            position: static !important;
+          .checkout-section-card {
+            padding: 14px !important;
           }
-          .checkout-outer-pad {
-            padding: 24px 16px !important;
+          .checkout-section-title {
+            font-size: 0.58rem !important;
+            margin-bottom: 12px !important;
+            padding-bottom: 10px !important;
+          }
+          .checkout-method-grid {
+            gap: 8px !important;
+          }
+          .checkout-method-btn {
+            padding: 12px !important;
+          }
+          .checkout-method-label {
+            font-size: 0.65rem !important;
+          }
+          .checkout-method-desc {
+            font-size: 0.6rem !important;
           }
           .checkout-manual-grid {
             grid-template-columns: 1fr !important;
+            gap: 8px !important;
           }
           .checkout-courier-row {
             flex-wrap: wrap !important;
+            gap: 6px !important;
           }
-          .checkout-courier-row button {
-            flex: 1 1 calc(50% - 5px) !important;
+          .checkout-courier-btn {
+            flex: 1 1 calc(50% - 4px) !important;
+            font-size: 0.6rem !important;
+            padding: 10px 6px !important;
+          }
+          .checkout-address-name {
+            font-size: 0.78rem !important;
+          }
+          .checkout-address-detail {
+            font-size: 0.68rem !important;
+          }
+          .checkout-summary-panel {
+            position: static !important;
+            padding: 16px !important;
+          }
+          .checkout-order-item {
+            gap: 8px !important;
+          }
+          .checkout-order-item-name {
+            font-size: 0.68rem !important;
+          }
+          .checkout-summary-row {
+            font-size: 0.72rem !important;
+          }
+          .checkout-total-label {
+            font-size: 0.52rem !important;
+          }
+          .checkout-total {
+            font-size: 1.1rem !important;
+          }
+          .checkout-submit {
+            font-size: 0.7rem !important;
+            padding: 12px !important;
           }
         }
       `}</style>
-      <div className="checkout-outer-pad" style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
+      <div className="checkout-page-wrap">
 
-        <button onClick={() => navigate('/cart')} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          marginBottom: 32, color: 'var(--text-muted)', cursor: 'pointer',
-          fontSize: '0.72rem', fontWeight: 800,
-          letterSpacing: '0.12em', textTransform: 'uppercase',
-          transition: 'color 0.2s ease', background: 'none', border: 'none'
-        }}
-          onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-        >
+        <button className="checkout-back-btn" onClick={() => navigate('/cart')}>
           <ArrowLeft size={14} /> KEMBALI
         </button>
 
-        <div style={{ marginBottom: 40 }}>
-          <div style={{
-            fontSize: '0.65rem', fontWeight: 800,
-            letterSpacing: '0.22em', textTransform: 'uppercase',
-            color: 'var(--accent-red)', marginBottom: 10
-          }}>Checkout</div>
-          <h1 style={{
-            fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
-            fontWeight: 900, letterSpacing: '-0.03em', textTransform: 'uppercase'
-          }}>SELESAIKAN PESANAN</h1>
-        </div>
+        <div className="checkout-label-tag">Checkout</div>
+        <h1 className="checkout-h1">SELESAIKAN PESANAN</h1>
 
         <form onSubmit={handleSubmit}>
-          <div className="checkout-main-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 32 }}>
+          <div className="checkout-main-grid">
 
             {/* LEFT */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div className="checkout-left-col">
 
               {/* Delivery Method */}
-              <div style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-lg)', padding: 24
-              }}>
-                <div style={{
-                  fontSize: '0.65rem', fontWeight: 800,
-                  letterSpacing: '0.2em', textTransform: 'uppercase',
-                  color: 'var(--text-muted)', marginBottom: 16,
-                  paddingBottom: 14, borderBottom: '1px solid var(--border-default)'
-                }}>METODE PENGIRIMAN</div>
+              <div className="checkout-section-card">
+                <div className="checkout-section-title">METODE PENGIRIMAN</div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="checkout-method-grid">
                   {[
                     { value: 'delivery', icon: <Truck size={20} />, label: 'DIKIRIM', desc: 'Kurir ke alamat kamu' },
                     { value: 'pickup', icon: <Store size={20} />, label: 'PICKUP', desc: 'Ambil di toko · GRATIS' }
                   ].map(({ value, icon, label, desc }) => (
-                    <button key={value} type="button"
+                    <button key={value} type="button" className="checkout-method-btn"
                       onClick={() => { setDeliveryMethod(value); setSelectedService(null); setCourier('') }}
                       style={{
-                        padding: '16px',
                         background: deliveryMethod === value ? 'rgba(240,46,41,0.08)' : 'var(--bg-elevated)',
                         border: `1px solid ${deliveryMethod === value ? 'var(--accent-red)' : 'var(--border-default)'}`,
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease'
                       }}>
-                      <div style={{
-                        color: deliveryMethod === value ? 'var(--accent-red)' : 'var(--text-muted)', marginBottom: 8
+                      <div className="checkout-method-icon" style={{
+                        color: deliveryMethod === value ? 'var(--accent-red)' : 'var(--text-muted)'
                       }}>{icon}</div>
-                      <div style={{
-                        fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.1em',
-                        color: deliveryMethod === value ? 'var(--accent-red)' : 'var(--text-secondary)', marginBottom: 4
+                      <div className="checkout-method-label" style={{
+                        color: deliveryMethod === value ? 'var(--accent-red)' : 'var(--text-secondary)'
                       }}>{label}</div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{desc}</div>
+                      <div className="checkout-method-desc">{desc}</div>
                     </button>
                   ))}
                 </div>
 
                 {deliveryMethod === 'pickup' && (
-                  <div style={{
-                    marginTop: 16, padding: '14px 16px',
-                    background: 'rgba(34,197,94,0.04)',
-                    border: '1px solid rgba(34,197,94,0.15)',
-                    borderRadius: 'var(--radius-md)'
-                  }}>
+                  <div style={{ marginTop: 16 }}>
                     <div style={{
                       fontSize: '0.65rem', fontWeight: 800,
                       letterSpacing: '0.12em', textTransform: 'uppercase',
-                      color: '#22c55e', marginBottom: 8
-                    }}>INFO PICKUP</div>
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.7, fontWeight: 400 }}>
-                      📍 Alamat Toko: <strong>Semarang, Jawa Tengah</strong><br />
-                      🕐 Jam Operasional: <strong>Menunggu konfirmasi stakeholder</strong><br />
-                      📱 Hubungi kami setelah order dibuat
+                      color: '#22c55e', marginBottom: 10
+                    }}>PILIH STORE PICKUP</div>
+
+                    {storesLoading ? (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Memuat daftar store...</div>
+                    ) : stores.length === 0 ? (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Belum ada store aktif untuk pickup. Silakan pilih metode dikirim.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {stores.map(store => {
+                          const active = selectedStoreId === store.store_id
+                          return (
+                            <button key={store.store_id} type="button"
+                              onClick={() => setSelectedStoreId(store.store_id)}
+                              style={{
+                                display: 'flex', gap: 12, alignItems: 'flex-start',
+                                textAlign: 'left', padding: '12px 14px', width: '100%',
+                                background: active ? 'rgba(34,197,94,0.08)' : 'var(--bg-elevated)',
+                                border: `1px solid ${active ? '#22c55e' : 'var(--border-default)'}`,
+                                borderRadius: 'var(--radius-md)', cursor: 'pointer', color: 'inherit'
+                              }}>
+                              <span style={{
+                                width: 16, height: 16, borderRadius: '50%', flexShrink: 0, marginTop: 2,
+                                border: `2px solid ${active ? '#22c55e' : 'var(--border-hover)'}`,
+                                background: active ? '#22c55e' : 'transparent',
+                                boxShadow: active ? 'inset 0 0 0 3px var(--bg-card)' : 'none'
+                              }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontWeight: 800, fontSize: '0.85rem', marginBottom: 3 }}>{store.name}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.6, fontWeight: 400 }}>
+                                  📍 {store.address}, {store.city}
+                                  {store.phone && <><br />📱 {store.phone}</>}
+                                </div>
+                                {store.maps_url && (
+                                  <a href={store.maps_url} target="_blank" rel="noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    style={{ fontSize: '0.7rem', fontWeight: 700, color: '#22c55e', textDecoration: 'underline' }}>
+                                    Lihat di Maps
+                                  </a>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 10, lineHeight: 1.6 }}>
+                      📱 Hubungi store setelah order dibuat untuk konfirmasi waktu pengambilan
                     </div>
                   </div>
                 )}
@@ -359,11 +623,7 @@ export default function CheckoutPage() {
 
               {/* Address */}
               {deliveryMethod === 'delivery' && (
-                <div style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-lg)', padding: 24
-                }}>
+                <div className="checkout-section-card">
                   <div style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid var(--border-default)'
@@ -437,10 +697,10 @@ export default function CheckoutPage() {
                                     background: selectedAddressId === addr.address_id ? 'rgba(240,46,41,0.1)' : 'var(--bg-card)',
                                     borderRadius: 'var(--radius-xs)'
                                   }}>{addr.label}</span>
-                                  <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{addr.recipient_name}</span>
-                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{addr.phone}</span>
+                                  <span className="checkout-address-name" style={{ fontWeight: 700, fontSize: '0.85rem' }}>{addr.recipient_name}</span>
+                                  <span className="checkout-address-detail" style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{addr.phone}</span>
                                 </div>
-                                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.6, fontWeight: 400 }}>
+                                <p className="checkout-address-detail" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.6, fontWeight: 400 }}>
                                   {addr.detail}, {addr.city}, {addr.province}
                                 </p>
                               </div>
@@ -469,7 +729,7 @@ export default function CheckoutPage() {
                     </>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div className="checkout-manual-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div className="checkout-manual-grid">
                         <div>
                           <label style={labelStyle}>Nama Penerima</label>
                           <input type="text" value={manualAddress.shipping_name}
@@ -523,30 +783,16 @@ export default function CheckoutPage() {
 
               {/* Courier */}
               {deliveryMethod === 'delivery' && (selectedAddressId || useManual) && (
-                <div style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 'var(--radius-lg)', padding: 24
-                }}>
-                  <div style={{
-                    fontSize: '0.65rem', fontWeight: 800,
-                    letterSpacing: '0.2em', textTransform: 'uppercase',
-                    color: 'var(--text-muted)', marginBottom: 16,
-                    paddingBottom: 14, borderBottom: '1px solid var(--border-default)'
-                  }}>PILIH KURIR</div>
+                <div className="checkout-section-card">
+                  <div className="checkout-section-title">PILIH KURIR</div>
 
-                  <div className="checkout-courier-row" style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                  <div className="checkout-courier-row">
                     {COURIERS.map(c => (
-                      <button key={c} type="button" onClick={() => handleCourierChange(c)}
+                      <button key={c} type="button" className="checkout-courier-btn" onClick={() => handleCourierChange(c)}
                         style={{
-                          flex: 1, padding: '10px',
                           background: courier === c ? 'rgba(240,46,41,0.08)' : 'var(--bg-elevated)',
                           border: `1px solid ${courier === c ? 'var(--accent-red)' : 'var(--border-default)'}`,
-                          borderRadius: 'var(--radius-sm)',
                           color: courier === c ? 'var(--accent-red)' : 'var(--text-secondary)',
-                          fontWeight: 800, cursor: 'pointer',
-                          fontSize: '0.72rem', letterSpacing: '0.1em', textTransform: 'uppercase',
-                          transition: 'all 0.2s ease'
                         }}>
                         {c === 'cod' ? 'COD' : c.toUpperCase()}
                       </button>
@@ -593,17 +839,8 @@ export default function CheckoutPage() {
               )}
 
               {/* Voucher */}
-              <div style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-lg)', padding: 24
-              }}>
-                <div style={{
-                  fontSize: '0.65rem', fontWeight: 800,
-                  letterSpacing: '0.2em', textTransform: 'uppercase',
-                  color: 'var(--text-muted)', marginBottom: 16,
-                  paddingBottom: 14, borderBottom: '1px solid var(--border-default)'
-                }}>VOUCHER / PROMO</div>
+              <div className="checkout-section-card">
+                <div className="checkout-section-title">VOUCHER / PROMO</div>
 
                 {appliedVoucher ? (
                   <div style={{
@@ -710,17 +947,8 @@ export default function CheckoutPage() {
               </div>
 
               {/* Payment Method */}
-              <div style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-lg)', padding: 24
-              }}>
-                <div style={{
-                  fontSize: '0.65rem', fontWeight: 800,
-                  letterSpacing: '0.2em', textTransform: 'uppercase',
-                  color: 'var(--text-muted)', marginBottom: 16,
-                  paddingBottom: 14, borderBottom: '1px solid var(--border-default)'
-                }}>METODE PEMBAYARAN</div>
+              <div className="checkout-section-card">
+                <div className="checkout-section-title">METODE PEMBAYARAN</div>
 
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 16,
@@ -748,21 +976,12 @@ export default function CheckoutPage() {
 
             {/* RIGHT — Summary */}
             <div>
-              <div className="checkout-summary" style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-lg)', padding: 28,
-                position: 'sticky', top: 'calc(var(--navbar-height) + 24px)'
-              }}>
-                <div style={{
-                  fontSize: '0.65rem', fontWeight: 800,
-                  letterSpacing: '0.2em', textTransform: 'uppercase',
-                  color: 'var(--text-muted)', marginBottom: 20
-                }}>RINGKASAN PESANAN</div>
+              <div className="checkout-summary-panel">
+                <div className="checkout-section-title" style={{ marginBottom: 20 }}>RINGKASAN PESANAN</div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+                <div style={{ marginBottom: 18 }}>
                   {cart?.items?.map(item => (
-                    <div key={item.cart_item_id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <div key={item.cart_item_id} className="checkout-order-item">
                       <div style={{
                         width: 40, height: 40, flexShrink: 0,
                         background: 'var(--bg-elevated)',
@@ -780,9 +999,7 @@ export default function CheckoutPage() {
                         ) : '🧴'}
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 700, marginBottom: 1 }}>
-                          {item.product?.product_name}
-                        </div>
+                        <div className="checkout-order-item-name">{item.product?.product_name}</div>
                         <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                           {item.size_ml}ml × {item.quantity}
                         </div>
@@ -796,19 +1013,19 @@ export default function CheckoutPage() {
 
                 <div style={{ height: 1, background: 'var(--border-default)', marginBottom: 16 }} />
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                <div style={{ marginBottom: 16 }}>
+                  <div className="checkout-summary-row">
                     <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Subtotal</span>
                     <span style={{ fontWeight: 700 }}>{formatRupiah(subtotal)}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                  <div className="checkout-summary-row">
                     <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Ongkos Kirim</span>
                     <span style={{ fontWeight: 700, color: shippingCost === 0 ? '#22c55e' : 'var(--text-primary)' }}>
                       {shippingCost === 0 ? 'GRATIS' : formatRupiah(shippingCost)}
                     </span>
                   </div>
                   {discount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                    <div className="checkout-summary-row">
                       <span style={{ color: '#22c55e', fontWeight: 600 }}>Diskon Voucher</span>
                       <span style={{ fontWeight: 700, color: '#22c55e' }}>-{formatRupiah(discount)}</span>
                     </div>
@@ -819,27 +1036,15 @@ export default function CheckoutPage() {
                   display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
                   padding: '14px 0', borderTop: '1px solid var(--border-default)', marginBottom: 20
                 }}>
-                  <div style={{
-                    fontSize: '0.62rem', fontWeight: 800,
-                    letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text-muted)'
-                  }}>TOTAL BAYAR</div>
-                  <div style={{
-                    fontSize: '1.4rem', fontWeight: 900,
-                    color: 'var(--accent-red)', letterSpacing: '-0.02em'
-                  }}>{formatRupiah(total)}</div>
+                  <div className="checkout-total-label">TOTAL BAYAR</div>
+                  <div className="checkout-total">{formatRupiah(total)}</div>
                 </div>
 
-                <button type="submit" disabled={submitting}
+                <button type="submit" disabled={submitting} className="checkout-submit"
                   style={{
-                    width: '100%', padding: '15px',
                     background: submitting ? 'var(--border-hover)' : 'var(--accent-red)',
-                    color: 'white', fontWeight: 800, fontSize: '0.78rem',
-                    letterSpacing: '0.15em', textTransform: 'uppercase',
-                    borderRadius: 'var(--radius-sm)', border: 'none',
                     cursor: submitting ? 'not-allowed' : 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                     boxShadow: submitting ? 'none' : '0 4px 20px rgba(240,46,41,0.35)',
-                    transition: 'all 0.3s ease'
                   }}
                   onMouseEnter={e => { if (!submitting) e.currentTarget.style.transform = 'translateY(-2px)' }}
                   onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}

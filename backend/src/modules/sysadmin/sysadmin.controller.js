@@ -6,6 +6,17 @@ const nodemailer = require('nodemailer');
 const { Op } = require('sequelize');
 const sequelize = require('../../config/database');
 const os = require('os');
+const { getAI } = require('../chatbot/chatbot.controller');
+
+// Helper: cek koneksi ke Gemini (request kecil, throw kalau gagal)
+const pingGemini = async () => {
+  const ai = await getAI();
+  await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: 'ping',
+    config: { maxOutputTokens: 16 },
+  });
+};
 
 // Helper: ambil config dari DB, fallback ke .env
 const getConfig = async (key, fallback = null) => {
@@ -61,9 +72,7 @@ const getSystemStatus = async (req, res) => {
     // Status AI Service
     let aiStatus = 'unknown';
     try {
-      const axios = require('axios');
-      const aiUrl = await getConfig('AI_ENDPOINT_URL', process.env.AI_ENDPOINT_URL);
-      await axios.get(aiUrl.replace('/chat', '/health'), { timeout: 3000 });
+      await pingGemini();
       aiStatus = 'online';
     } catch {
       aiStatus = 'offline';
@@ -145,15 +154,15 @@ const getConfigs = async (req, res) => {
     const keys = [
       'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS',
       'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
-      'AI_ENDPOINT_URL'
+      'GEMINI_API_KEY'
     ];
 
     const configs = {};
     for (const key of keys) {
       const config = await SystemConfig.findOne({ where: { key } });
-      // Mask sensitive values
-      const value = config?.value || '';
-      if (key.includes('PASS') || key.includes('SECRET')) {
+      // Mask sensitive values (cek DB, fallback .env)
+      const value = config?.value || process.env[key] || '';
+      if (key.includes('PASS') || key.includes('SECRET') || key.includes('API_KEY')) {
         configs[key] = value ? '••••••••' : ''
       } else {
         configs[key] = value || process.env[key] || ''
@@ -176,7 +185,7 @@ const updateConfigs = async (req, res) => {
     const allowedKeys = [
       'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS',
       'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
-      'AI_ENDPOINT_URL'
+      'GEMINI_API_KEY'
     ];
 
     for (const [key, value] of Object.entries(configs)) {
@@ -225,14 +234,12 @@ const testSmtp = async (req, res) => {
 
 const testAiService = async (req, res) => {
   try {
-    const axios = require('axios');
-    const aiUrl = await getConfig('AI_ENDPOINT_URL', process.env.AI_ENDPOINT_URL);
-    await axios.get(aiUrl.replace('/chat', '/health'), { timeout: 5000 });
-    await saveLog('info', 'Test koneksi AI Service berhasil', 'ai_service', req.user.user_id);
-    return res.status(200).json({ message: 'AI Service online!', status: 'online' });
+    await pingGemini();
+    await saveLog('info', 'Test koneksi Gemini AI berhasil', 'ai_service', req.user.user_id);
+    return res.status(200).json({ message: 'Gemini AI online!', status: 'online' });
   } catch (err) {
-    await saveLog('warning', `AI Service tidak tersedia: ${err.message}`, 'ai_service', req.user.user_id);
-    return res.status(400).json({ message: 'AI Service tidak dapat dijangkau', status: 'offline' });
+    await saveLog('warning', `Gemini AI tidak tersedia: ${err.message}`, 'ai_service', req.user.user_id);
+    return res.status(400).json({ message: 'Gemini AI tidak dapat dijangkau, cek API key', status: 'offline' });
   }
 };
 

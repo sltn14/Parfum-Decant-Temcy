@@ -103,8 +103,9 @@ export default function SuccessPage() {
     }}>
       <style>{`
         @media (max-width: 768px) {
-          .success-outer { padding: 16px !important; align-items: flex-start !important; }
+          .success-outer { padding: 16px !important; align-items: flex-start !important; padding-top: 24px !important; }
           .success-card { padding: 28px 20px !important; }
+          .success-h1 { font-size: 1.5rem !important; }
           .success-actions { flex-direction: column !important; }
           .success-actions button { width: 100% !important; justify-content: center !important; }
         }
@@ -140,7 +141,7 @@ export default function SuccessPage() {
           color: '#22c55e', marginBottom: 12
         }}>Pesanan Berhasil Dibuat</div>
 
-        <h1 style={{
+        <h1 className="success-h1" style={{
           fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
           fontWeight: 900, letterSpacing: '-0.03em',
           textTransform: 'uppercase', marginBottom: 16

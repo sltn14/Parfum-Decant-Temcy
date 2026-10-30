@@ -635,12 +635,29 @@ export default function AdminSalesReport() {
   return (
     <div>
       <style>{`
+        .sales-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; }
+        .sales-export-btns { display: flex; gap: 10px; }
+        .sales-h1 {
+          font-weight: 900; font-size: 1.8rem;
+          letter-spacing: -0.02em; text-transform: uppercase;
+          color: var(--text-primary); margin: 0;
+        }
+        .sales-filter {
+          display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap;
+        }
+        .sales-summary-grid {
+          display: grid; grid-template-columns: repeat(5, 1fr);
+          gap: 14px; margin-bottom: 24px;
+        }
+        .sales-bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         @media (max-width: 768px) {
           .sales-header {
             flex-direction: column !important;
             align-items: flex-start !important;
             gap: 16px !important;
+            margin-bottom: 20px !important;
           }
+          .sales-h1 { font-size: 1.3rem !important; }
           .sales-export-btns {
             flex-wrap: wrap !important;
             gap: 8px !important;
@@ -666,18 +683,14 @@ export default function AdminSalesReport() {
         }
       `}</style>
 
-      <div className="sales-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 32 }}>
+      <div className="sales-header">
         <div>
           <div style={{
             fontSize: '0.62rem', fontWeight: 800,
             letterSpacing: '0.22em', textTransform: 'uppercase',
             color: 'var(--accent-red)', marginBottom: 8
           }}>Analitik</div>
-          <h1 style={{
-            fontWeight: 900, fontSize: '1.8rem',
-            letterSpacing: '-0.02em', textTransform: 'uppercase',
-            color: 'var(--text-primary)'
-          }}>LAPORAN PENJUALAN</h1>
+          <h1 className="sales-h1">LAPORAN PENJUALAN</h1>
         </div>
 
         {!loading && report && (
@@ -721,8 +734,7 @@ export default function AdminSalesReport() {
         background: 'var(--bg-card)',
         border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-lg)',
-        padding: '20px 24px', marginBottom: 24,
-        display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap'
+        padding: '20px 24px', marginBottom: 24
       }}>
         {[
           { label: 'DARI TANGGAL', key: 'start_date' },
@@ -768,10 +780,7 @@ export default function AdminSalesReport() {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="sales-summary-grid" style={{
-            display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)',
-            gap: 14, marginBottom: 24
-          }}>
+          <div className="sales-summary-grid">
             {[
               { label: 'TOTAL REVENUE', value: formatRupiah(report?.totalRevenue || 0), color: '#22c55e' },
               { label: 'TOTAL HPP', value: formatRupiah(totalHPP), color: '#f59e0b' },
@@ -803,7 +812,7 @@ export default function AdminSalesReport() {
             ))}
           </div>
 
-          <div className="sales-bottom-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div className="sales-bottom-grid">
 
             {/* Top Products */}
             <div style={{

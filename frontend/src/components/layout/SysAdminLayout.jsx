@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
+import { useResponsiveTables, RESPONSIVE_TABLE_CSS } from './responsiveTables'
 import { Toaster } from 'react-hot-toast'
 import { LayoutDashboard, Users, Settings, Activity, LogOut, Shield, Menu, X } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
@@ -16,6 +17,8 @@ export default function SysAdminLayout() {
   const { user, clearAuth } = useAuthStore()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const mainRef = useRef(null)
+  useResponsiveTables(mainRef)
 
   const isActive = (to, exact = false) => {
     if (exact) return location.pathname === to
@@ -121,8 +124,9 @@ export default function SysAdminLayout() {
         @media (max-width: 768px) {
           .sysadmin-sidebar-desktop { display: none !important; }
           .sysadmin-topbar { display: flex !important; }
-          .sysadmin-main { margin-left: 0 !important; padding: 80px 16px 32px !important; }
+          .sysadmin-main { margin-left: 0 !important; padding: 68px 12px 24px !important; min-width: 0 !important; }
         }
+        ${RESPONSIVE_TABLE_CSS}
         @media (min-width: 769px) {
           .sysadmin-sidebar-mobile-overlay { display: none !important; }
           .sysadmin-sidebar-mobile-drawer { display: none !important; }
@@ -204,7 +208,7 @@ export default function SysAdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="sysadmin-main" style={{
+      <main ref={mainRef} className="sysadmin-main rt-scope" style={{
         flex: 1, marginLeft: 240,
         padding: '36px 36px',
         minHeight: '100vh', overflowX: 'hidden'

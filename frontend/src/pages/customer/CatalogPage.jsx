@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { Search, X, SlidersHorizontal, ChevronDown } from 'lucide-react'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
+import { Search, X, SlidersHorizontal, ChevronDown, Heart } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import useSearchStore from '../../store/searchStore'
+import useAuthStore from '../../store/authStore'
 
 const API_URL = 'http://localhost:5000'
 
@@ -24,7 +25,31 @@ const useInView = (threshold = 0.1) => {
 const ProductCard = ({ product, index }) => {
   const [ref, inView] = useInView()
   const [hovered, setHovered] = useState(false)
+  const [isFav, setIsFav] = useState(false)
+  const [favLoading, setFavLoading] = useState(false)
+  const { isAuthenticated } = useAuthStore()
+  const navigate = useNavigate()
   const hasImage = product.image_filename && product.image_filename !== 'default.png'
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    api.get(`/favorites/check/${product.product_id}`)
+      .then(res => setIsFav(res.data.is_favorite))
+      .catch(() => {})
+  }, [product.product_id, isAuthenticated])
+
+  const handleFav = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isAuthenticated) { toast.error('Login dulu untuk menyimpan favorit'); navigate('/login'); return }
+    setFavLoading(true)
+    try {
+      const res = await api.post('/favorites/toggle', { product_id: product.product_id })
+      setIsFav(res.data.is_favorite)
+      toast.success(res.data.is_favorite ? 'Ditambahkan ke favorit!' : 'Dihapus dari favorit')
+    } catch { toast.error('Gagal') }
+    finally { setFavLoading(false) }
+  }
 
   return (
     <Link to={`/product/${product.product_id}`} ref={ref}
@@ -37,13 +62,13 @@ const ProductCard = ({ product, index }) => {
         transform: inView ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.97)',
         transition: `opacity 0.5s ease ${index * 0.07}s, transform 0.5s ease ${index * 0.07}s, border-color 0.3s, box-shadow 0.3s`,
         boxShadow: hovered ? '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(240,46,41,0.15)' : 'none',
-        textDecoration: 'none'
+        textDecoration: 'none', position: 'relative'
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       {/* Image Area */}
-      <div style={{
+      <div className="product-card-img" style={{
         height: 200,
         background: hasImage
           ? 'var(--bg-elevated)'
@@ -95,6 +120,31 @@ const ProductCard = ({ product, index }) => {
           }}>🧴</div>
         )}
 
+        {/* Heart / Favorite Button */}
+        <button
+          onClick={handleFav}
+          disabled={favLoading}
+          style={{
+            position: 'absolute', top: 10, right: 10, zIndex: 3,
+            width: 32, height: 32, borderRadius: '50%',
+            background: isFav ? 'var(--accent-red)' : 'rgba(6,6,10,0.6)',
+            border: `1px solid ${isFav ? 'var(--accent-red)' : 'rgba(255,255,255,0.15)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: favLoading ? 'not-allowed' : 'pointer',
+            backdropFilter: 'blur(4px)',
+            transition: 'all 0.2s ease',
+            opacity: favLoading ? 0.6 : 1
+          }}
+          onMouseEnter={e => { if (!favLoading) e.currentTarget.style.transform = 'scale(1.15)' }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+        >
+          <Heart
+            size={15}
+            fill={isFav ? 'white' : 'none'}
+            color={isFav ? 'white' : 'rgba(255,255,255,0.85)'}
+          />
+        </button>
+
         {/* Hover CTA */}
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -111,22 +161,22 @@ const ProductCard = ({ product, index }) => {
       </div>
 
       {/* Body */}
-      <div style={{ padding: '16px 18px 18px' }}>
-        <div style={{
+      <div className="product-card-body" style={{ padding: '16px 18px 18px' }}>
+        <div className="product-card-brand" style={{
           fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.12em',
           textTransform: 'uppercase',
           color: 'var(--accent-red)', marginBottom: 6
         }}>
           {product.brand}
         </div>
-        <div style={{
+        <div className="product-card-name" style={{
           fontSize: '0.9rem', fontWeight: 700,
           color: 'var(--text-primary)', marginBottom: 8,
           lineHeight: 1.3, letterSpacing: '-0.01em'
         }}>
           {product.product_name}
         </div>
-        <div style={{
+        <div className="product-card-meta" style={{
           fontSize: '0.74rem', color: 'var(--text-muted)',
           marginBottom: 14, display: 'flex', gap: 8, fontWeight: 500
         }}>
@@ -147,13 +197,13 @@ const ProductCard = ({ product, index }) => {
             }}>
               MULAI DARI
             </div>
-            <div style={{
+            <div className="product-card-price" style={{
               fontWeight: 800, fontSize: '0.95rem',
               color: hovered ? 'var(--accent-red)' : 'var(--text-primary)',
               transition: '200ms ease', letterSpacing: '-0.01em'
             }}>
               {formatRupiah(product.price_1ml)}
-              <span style={{
+              <span className="product-card-price-label" style={{
                 fontSize: '0.7rem', fontWeight: 500,
                 color: 'var(--text-muted)'
               }}>/ml</span>
@@ -258,6 +308,16 @@ export default function CatalogPage() {
           .catalog-header-row { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
           .catalog-filter-bar { gap: 8px !important; }
           .catalog-filter-bar > div select { font-size: 0.78rem !important; padding: 9px 30px 9px 10px !important; }
+          .catalog-h1 { font-size: 1.4rem !important; }
+          .catalog-product-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+          .catalog-product-grid .product-card-brand { font-size: 0.55rem !important; }
+          .catalog-product-grid .product-card-name { font-size: 0.8rem !important; }
+          .catalog-product-grid .product-card-meta { font-size: 0.65rem !important; }
+          .catalog-product-grid .product-card-body { padding: 10px 12px 12px !important; }
+          .catalog-product-grid .product-card-img { height: 140px !important; }
+          .catalog-product-grid .product-card-price { font-size: 0.82rem !important; }
+          .catalog-product-grid .product-card-price-label { font-size: 0.55rem !important; }
+          .catalog-product-grid .product-card-btn { padding: 6px 10px !important; font-size: 0.58rem !important; }
         }
       `}</style>
       <div className="catalog-outer-pad" style={{ maxWidth: 1400, margin: '0 auto', padding: '48px 32px' }}>
@@ -277,7 +337,7 @@ export default function CatalogPage() {
             Koleksi Lengkap
           </div>
           <div className="catalog-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-            <h1 style={{
+            <h1 className="catalog-h1" style={{
               fontFamily: 'var(--font-heading)',
               fontSize: 'clamp(2rem, 4vw, 3rem)',
               fontWeight: 400, fontStyle: 'italic',
@@ -403,7 +463,7 @@ export default function CatalogPage() {
 
         {/* Grid */}
         {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 24 }}>
+          <div className="catalog-product-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 24 }}>
             {[...Array(15)].map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : products.length === 0 ? (
@@ -426,7 +486,7 @@ export default function CatalogPage() {
             }}>Reset Filter</button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 24 }}>
+          <div className="catalog-product-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 24 }}>
             {products.map((product, i) => (
               <ProductCard key={product.product_id} product={product} index={i} />
             ))}

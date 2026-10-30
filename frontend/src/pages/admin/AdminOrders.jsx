@@ -104,20 +104,59 @@ export default function AdminOrders() {
   return (
     <div>
       <style>{`
+        .ao-h1 {
+          font-weight: 900;
+          font-size: 1.8rem;
+          letter-spacing: -0.02em;
+          text-transform: uppercase;
+          color: var(--text-primary);
+          margin-bottom: 32px;
+        }
+        .order-filter-row {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 24px;
+          flex-wrap: wrap;
+        }
+        .order-header-row {
+          padding: 14px 20px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+        .order-expanded-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+        }
+        .order-tracking-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
         @media (max-width: 768px) {
+          .ao-h1 {
+            font-size: 1.3rem !important;
+            margin-bottom: 16px !important;
+          }
           .order-filter-row {
-            gap: 6px !important;
+            gap: 5px !important;
+            margin-bottom: 14px !important;
           }
           .order-filter-row button {
-            font-size: 0.58rem !important;
-            padding: 6px 10px !important;
+            font-size: 0.55rem !important;
+            padding: 5px 9px !important;
           }
           .order-header-row {
-            flex-wrap: wrap !important;
+            padding: 10px 14px !important;
             gap: 8px !important;
+            flex-wrap: wrap !important;
           }
           .order-expanded-grid {
             grid-template-columns: 1fr !important;
+            gap: 16px !important;
           }
           .order-tracking-grid {
             grid-template-columns: 1fr !important;
@@ -125,14 +164,10 @@ export default function AdminOrders() {
         }
       `}</style>
 
-      <h1 style={{
-        fontWeight: 900, fontSize: '1.8rem',
-        letterSpacing: '-0.02em', textTransform: 'uppercase',
-        color: 'var(--text-primary)', marginBottom: 32
-      }}>MANAJEMEN PESANAN</h1>
+      <h1 className="ao-h1">MANAJEMEN PESANAN</h1>
 
       {/* Filter Tabs */}
-      <div className="order-filter-row" style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+      <div className="order-filter-row">
         <button onClick={() => { setFilterStatus(''); setPage(1) }}
           style={{
             padding: '7px 14px',
@@ -187,12 +222,7 @@ export default function AdminOrders() {
               borderRadius: 'var(--radius-lg)', overflow: 'hidden'
             }}>
               {/* Header */}
-              <div className="order-header-row" style={{
-                padding: '14px 20px',
-                display: 'flex', alignItems: 'center', gap: 16,
-                cursor: 'pointer',
-                transition: 'background 0.15s ease'
-              }}
+              <div className="order-header-row"
                 onClick={() => setExpandedOrder(isExpanded ? null : order.order_id)}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -242,7 +272,7 @@ export default function AdminOrders() {
                   borderTop: '1px solid var(--border-default)',
                   padding: '20px 20px 24px'
                 }}>
-                  <div className="order-expanded-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                  <div className="order-expanded-grid">
 
                     {/* Left: Items + Shipping */}
                     <div>
@@ -387,7 +417,7 @@ export default function AdminOrders() {
                         color: 'var(--text-muted)', marginBottom: 10
                       }}>UPDATE TRACKING</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div className="order-tracking-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div className="order-tracking-grid">
                           <input
                             placeholder="Kurir (JNE, J&T...)"
                             value={trackingForm[order.order_id]?.courier || ''}

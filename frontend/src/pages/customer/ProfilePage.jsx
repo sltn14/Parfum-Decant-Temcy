@@ -154,21 +154,18 @@ export default function ProfilePage() {
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
       <style>{`
         @media (max-width: 768px) {
-          .profile-main-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .profile-form-grid {
-            grid-template-columns: 1fr !important;
-          }
-          .profile-aroma-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-          .profile-outer-pad {
-            padding: 24px 16px !important;
-          }
-          .profile-content-pad {
-            padding: 20px !important;
-          }
+          .profile-outer-pad { padding: 20px 16px !important; }
+          .profile-h1 { font-size: 1.3rem !important; }
+          .profile-main-grid { grid-template-columns: 1fr !important; gap: 14px !important; }
+          .profile-form-grid { grid-template-columns: 1fr !important; }
+          .profile-aroma-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .profile-content-pad { padding: 18px 16px !important; }
+          .profile-section-title { font-size: 0.75rem !important; }
+          .profile-avatar-card { padding: 18px !important; }
+          .profile-avatar-name { font-size: 0.9rem !important; }
+          .profile-nav-btn { font-size: 0.68rem !important; padding: 10px 14px !important; }
+          .profile-label { font-size: 0.65rem !important; }
+          .profile-input { font-size: 0.82rem !important; padding: 10px 12px !important; }
         }
       `}</style>
       <div className="profile-outer-pad" style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 32px' }}>
@@ -179,7 +176,7 @@ export default function ProfilePage() {
             letterSpacing: '0.22em', textTransform: 'uppercase',
             color: 'var(--accent-red)', marginBottom: 10
           }}>Akun</div>
-          <h1 style={{
+          <h1 className="profile-h1" style={{
             fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
             fontWeight: 900, letterSpacing: '-0.03em', textTransform: 'uppercase'
           }}>PROFIL SAYA</h1>

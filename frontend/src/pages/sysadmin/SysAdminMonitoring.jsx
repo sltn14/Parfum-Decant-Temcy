@@ -95,35 +95,42 @@ export default function SysAdminMonitoring() {
   return (
     <div>
       <style>{`
+        .sysmon-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; }
+        .sysmon-h1 { font-weight: 900; font-size: 1.8rem; letter-spacing: -0.02em; text-transform: uppercase; margin: 0; }
+        .sysmon-refresh-btn {
+          display: flex; align-items: center; gap: 8px;
+          padding: 10px 18px; border: 1px solid var(--border-default);
+          border-radius: var(--radius-sm); color: var(--text-secondary);
+          font-weight: 800; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+          transition: all 0.2s ease;
+        }
         @media (max-width: 768px) {
-          .sysmon-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
-          .sysmon-service-grid { grid-template-columns: 1fr !important; }
+          .sysmon-header { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; margin-bottom: 20px !important; }
+          .sysmon-h1 { font-size: 1.3rem !important; }
+          .sysmon-refresh-btn { width: 100% !important; justify-content: center !important; }
+          .sysmon-service-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+          .sysmon-service-grid > div { padding: 12px !important; gap: 10px !important; }
+          .sysmon-service-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
           .sysmon-server-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .sysmon-log-header { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
           .sysmon-log-filter { flex-wrap: wrap !important; gap: 6px !important; }
+          .sysmon-card { padding: 16px !important; }
         }
       `}</style>
 
-      <div className="sysmon-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 32 }}>
+      <div className="sysmon-header">
         <div>
           <div style={{
             fontSize: '0.62rem', fontWeight: 800,
             letterSpacing: '0.22em', textTransform: 'uppercase',
             color: '#8b5cf6', marginBottom: 8
           }}>Administrator Sistem</div>
-          <h1 style={{ fontWeight: 900, fontSize: '1.8rem', letterSpacing: '-0.02em', textTransform: 'uppercase' }}>
-            MONITORING SISTEM
-          </h1>
+          <h1 className="sysmon-h1">MONITORING SISTEM</h1>
         </div>
-        <button onClick={handleRefresh} disabled={refreshing}
+        <button onClick={handleRefresh} disabled={refreshing} className="sysmon-refresh-btn"
           style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 18px',
             background: refreshing ? 'var(--border-hover)' : 'var(--bg-card)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)',
-            fontWeight: 800, fontSize: '0.68rem', letterSpacing: '0.1em', textTransform: 'uppercase',
-            cursor: refreshing ? 'not-allowed' : 'pointer', transition: 'all 0.2s ease'
+            cursor: refreshing ? 'not-allowed' : 'pointer'
           }}>
           <RefreshCw size={14} style={{ animation: refreshing ? 'rotate-slow 0.8s linear infinite' : 'none' }} />
           {refreshing ? 'MEMPERBARUI...' : 'REFRESH'}
@@ -225,7 +232,7 @@ export default function SysAdminMonitoring() {
       ) : null}
 
       {/* Log Sistem */}
-      <div style={{
+      <div className="sysmon-card" style={{
         background: 'var(--bg-card)', border: '1px solid var(--border-default)',
         borderRadius: 'var(--radius-lg)', padding: 24
       }}>
@@ -280,11 +287,11 @@ export default function SysAdminMonitoring() {
                     background: config.color + '20', color: config.color,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1
                   }}>{config.icon}</div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)', marginBottom: 4 }}>
                       {log.message}
                     </div>
-                    <div style={{ display: 'flex', gap: 12, fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                       {log.source && <span>Sumber: <strong>{log.source}</strong></span>}
                       <span>{new Date(log.createdAt).toLocaleString('id-ID', {
                         day: 'numeric', month: 'short', year: 'numeric',

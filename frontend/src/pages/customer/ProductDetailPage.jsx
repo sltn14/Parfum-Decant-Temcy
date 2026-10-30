@@ -178,11 +178,38 @@ export default function ProductDetailPage() {
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
       <style>{`
         @media (max-width: 768px) {
-          .pd-outer-pad { padding: 24px 16px !important; }
-          .pd-main-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+          .pd-outer-pad { padding: 20px 16px !important; }
+          .pd-main-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
+          .pd-product-img-wrap { height: 260px !important; margin-bottom: 12px !important; }
+          .pd-product-h1 { font-size: 1.3rem !important; line-height: 1.1 !important; margin-bottom: 10px !important; }
+          .pd-product-price { font-size: 1.4rem !important; }
+          .pd-size-btn { padding: 8px 10px !important; font-size: 0.65rem !important; }
+          .pd-size-row { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)) !important; gap: 6px !important; flex-wrap: unset !important; overflow-x: unset !important; }
+          .pd-desc { font-size: 0.82rem !important; margin-bottom: 20px !important; }
+          .pd-qty-add-row { flex-direction: column !important; gap: 10px !important; }
+          .pd-qty-add-row button { width: 100% !important; justify-content: center !important; }
           .pd-info-section-grid { grid-template-columns: 1fr !important; }
           .pd-reviews-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
           .pd-buy-not-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+          .pd-back-btn { font-size: 0.65rem !important; margin-bottom: 24px !important; }
+          .pd-section-wrap { padding: 22px !important; margin-bottom: 28px !important; }
+          .pd-section-heading { font-size: 1rem !important; }
+          .pd-review-card { padding: 14px !important; }
+          .pd-review-name { font-size: 0.75rem !important; }
+          .pd-review-text { font-size: 0.78rem !important; }
+          .pd-review-date { font-size: 0.6rem !important; }
+          .pd-info-card { padding: 20px !important; }
+          .pd-info-title { font-size: 0.68rem !important; margin-bottom: 14px !important; }
+          .pd-info-text { font-size: 0.78rem !important; }
+          .pd-tag-chip { font-size: 0.6rem !important; padding: 4px 8px !important; }
+          .pd-related-title { font-size: 1rem !important; margin-bottom: 16px !important; }
+          .pd-related-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+          .pd-related-grid .pd-rel-img { height: 130px !important; }
+          .pd-related-grid .pd-rel-body { padding: 10px 12px 12px !important; }
+          .pd-related-grid .pd-rel-brand { font-size: 0.55rem !important; }
+          .pd-related-grid .pd-rel-name { font-size: 0.78rem !important; }
+          .pd-related-grid .pd-rel-meta { font-size: 0.65rem !important; }
+          .pd-related-grid .pd-rel-price { font-size: 0.8rem !important; }
         }
       `}</style>
       <div className="pd-outer-pad" style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 32px' }}>
@@ -299,7 +326,7 @@ export default function ProductDetailPage() {
               color: 'var(--accent-red)', marginBottom: 10
             }}>{product.brand}</div>
 
-            <h1 style={{
+            <h1 className="pd-product-h1" style={{
               fontSize: 'clamp(1.6rem, 3vw, 2.2rem)',
               fontWeight: 900, letterSpacing: '-0.03em',
               textTransform: 'uppercase', lineHeight: 1.1, marginBottom: 14
@@ -330,7 +357,7 @@ export default function ProductDetailPage() {
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 12
               }}>PILIH UKURAN</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="pd-size-row" style={{ display: 'flex', gap: 8, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
                 {sizes.map(({ ml, key, stockKey }) => {
                   if (!product[key]) return null
                   const stock = product[stockKey] ?? 0
@@ -356,7 +383,8 @@ export default function ProductDetailPage() {
                         boxShadow: isSelected && !isHabis ? '0 4px 14px rgba(240,46,41,0.3)' : 'none',
                         transition: 'all 0.2s ease',
                         opacity: isHabis ? 0.5 : 1,
-                        position: 'relative'
+                        position: 'relative',
+                        flexShrink: 0
                       }}>
                       {ml}ml
                       <div style={{ fontSize: '0.62rem', fontWeight: 600, opacity: 0.85, marginTop: 2 }}>
@@ -387,7 +415,7 @@ export default function ProductDetailPage() {
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 6
               }}>HARGA</div>
-              <div style={{
+              <div className="pd-product-price" style={{
                 fontSize: '2rem', fontWeight: 900,
                 letterSpacing: '-0.03em', color: 'var(--accent-red)'
               }}>{formatRupiah(currentPrice)}</div>
@@ -515,7 +543,7 @@ export default function ProductDetailPage() {
             gap: 20, marginBottom: 24
           }}>
             {hasNotes && (
-              <div style={{
+              <div className="pd-info-card" style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border-default)',
                 borderRadius: 'var(--radius-lg)', padding: 28
@@ -853,7 +881,7 @@ export default function ProductDetailPage() {
               fontWeight: 900, letterSpacing: '-0.03em',
               textTransform: 'uppercase', marginBottom: 28
             }}>PRODUK SERUPA</h2>
-            <div style={{
+            <div className="pd-related-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
               gap: 16
@@ -879,7 +907,7 @@ export default function ProductDetailPage() {
                     e.currentTarget.style.transform = 'translateY(0)'
                     e.currentTarget.style.boxShadow = 'none'
                   }}>
-                  <div style={{
+                  <div className="pd-rel-img" style={{
                     height: 140, background: 'var(--bg-elevated)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     overflow: 'hidden'
@@ -894,17 +922,17 @@ export default function ProductDetailPage() {
                       <span style={{ fontSize: '2.5rem' }}>🧴</span>
                     )}
                   </div>
-                  <div style={{ padding: '12px 14px' }}>
-                    <div style={{
+                  <div className="pd-rel-body" style={{ padding: '12px 14px' }}>
+                    <div className="pd-rel-brand" style={{
                       fontSize: '0.58rem', fontWeight: 800,
                       letterSpacing: '0.12em', textTransform: 'uppercase',
                       color: 'var(--accent-red)', marginBottom: 4
                     }}>{p.brand}</div>
-                    <div style={{
+                    <div className="pd-rel-name" style={{
                       fontWeight: 700, fontSize: '0.82rem',
                       marginBottom: 8, letterSpacing: '-0.01em'
                     }}>{p.product_name}</div>
-                    <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--accent-red)' }}>
+                    <div className="pd-rel-price" style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--accent-red)' }}>
                       {formatRupiah(p.price_1ml)}
                       <span style={{ fontSize: '0.68rem', fontWeight: 500, color: 'var(--text-muted)' }}>/ml</span>
                     </div>
