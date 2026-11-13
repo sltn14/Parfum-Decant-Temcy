@@ -1,21 +1,18 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Heart, ShoppingCart, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Heart, ShoppingCart } from 'lucide-react'
 import api from '../../api/axios'
-import useCartStore from '../../store/cartStore'
 import toast from 'react-hot-toast'
 
-const API_URL = 'http://localhost:5000'
+import { API_URL } from '../../config/env'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
 
 export default function FavoritePage() {
   const navigate = useNavigate()
-  const { incrementCart } = useCartStore()
   const [favorites, setFavorites] = useState([])
   const [loading, setLoading] = useState(true)
-  const [addingToCart, setAddingToCart] = useState(null)
 
   useEffect(() => { fetchFavorites() }, [])
 
@@ -35,18 +32,8 @@ export default function FavoritePage() {
     } catch { toast.error('Gagal menghapus favorit') }
   }
 
-  const handleAddToCart = async (product) => {
-    setAddingToCart(product.product_id)
-    try {
-      await api.post('/cart', { product_id: product.product_id, size_ml: 1, quantity: 1 })
-      incrementCart()
-      toast.success('Ditambahkan ke keranjang!')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal')
-    } finally {
-      setAddingToCart(null)
-    }
-  }
+  // Ukuran vial (1/2/3/5 ml) dipilih di halaman detail, jadi tombol ini mengarah ke sana
+  const handleChooseSize = (product) => navigate(`/product/${product.product_id}`)
 
   if (loading) return (
     <div style={{
@@ -245,20 +232,19 @@ export default function FavoritePage() {
                         </div>
                       </div>
                       <button className="fav-card-btn"
-                        onClick={() => handleAddToCart(product)}
-                        disabled={addingToCart === product.product_id}
+                        onClick={() => handleChooseSize(product)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 6,
                           padding: '8px 14px',
-                          background: addingToCart === product.product_id ? 'var(--border-hover)' : 'var(--accent-red)',
+                          background: 'var(--accent-red)',
                           color: 'white', fontWeight: 800,
                           fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase',
                           borderRadius: 'var(--radius-sm)', border: 'none',
-                          cursor: addingToCart === product.product_id ? 'not-allowed' : 'pointer',
+                          cursor: 'pointer',
                           transition: 'all 0.2s ease'
                         }}>
                         <ShoppingCart size={12} />
-                        {addingToCart === product.product_id ? '...' : 'TAMBAH'}
+                        PILIH UKURAN
                       </button>
                     </div>
                   </div>

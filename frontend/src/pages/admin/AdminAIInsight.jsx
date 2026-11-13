@@ -18,9 +18,14 @@ export default function AdminAIInsight() {
   const fetchData = async () => {
     setLoading(true)
     try {
+      // Produk terlaris dihitung dari 30 hari terakhir (bukan seluruh riwayat)
+      const end = new Date()
+      const start = new Date()
+      start.setDate(start.getDate() - 30)
+      const fmt = (d) => d.toISOString().slice(0, 10)
       const [dashRes, reportRes] = await Promise.all([
         api.get('/admin/dashboard'),
-        api.get('/admin/sales-report')
+        api.get(`/admin/sales-report?start_date=${fmt(start)}&end_date=${fmt(end)}`)
       ])
       setStats({ dashboard: dashRes.data, report: reportRes.data })
     } catch {
@@ -65,7 +70,7 @@ DATA PENJUALAN:
 STATUS PESANAN:
 ${dashboard?.ordersByStatus?.map(s => `- ${s.status}: ${s.count} pesanan`).join('\n') || 'Tidak ada data'}
 
-PRODUK TERLARIS:
+PRODUK TERLARIS (30 hari terakhir):
 ${topProducts.map((p, i) => `${i + 1}. ${p.brand} ${p.name} - ${p.qty} terjual - ${formatRupiah(p.revenue)}`).join('\n') || 'Tidak ada data'}
 
 Berikan dalam format:
@@ -124,25 +129,42 @@ ${cancelRate > 20 ? `⚠️ Tingkat pembatalan ${cancelRate}% cukup tinggi. Pert
     toast.success('Insight berhasil digenerate!')
   }
 
-  // Parse insight text jadi sections
+  // Parse insight text jadi sections. Toleran terhadap format balasan AI:
+  // "**JUDUL**", "1. JUDUL", "## JUDUL", "**1. JUDUL** (keterangan)" dianggap judul yang sama.
+  const INSIGHT_HEADINGS = ['RINGKASAN PERFORMA', 'INSIGHT UTAMA', 'REKOMENDASI AKSI', 'PERINGATAN/PERHATIAN']
+
   const parseInsight = (text) => {
     if (!text) return []
     const sections = []
-    const lines = text.split('\n')
+    const rawPoints = []
     let current = null
 
-    lines.forEach(line => {
+    text.split('\n').forEach(line => {
       const trimmed = line.trim()
       if (!trimmed) return
 
-      if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+      const plain = trimmed.replace(/\*\*/g, '').replace(/^#{1,6}\s*/, '').replace(/^\d+[.)]\s*/, '').trim()
+      const heading = INSIGHT_HEADINGS.find(h => plain.toUpperCase().startsWith(h))
+      const isBoldLine = trimmed.startsWith('**') && trimmed.endsWith('**')
+
+      if (heading) {
         if (current) sections.push(current)
-        current = { title: trimmed.replace(/\*\*/g, ''), points: [] }
-      } else if (current) {
-        current.points.push(trimmed.replace(/^[•\-\*]\s*/, ''))
+        current = { title: heading, points: [] }
+        // teks di baris yang sama setelah judul (mis. "(2-3 kalimat): isi ringkasan")
+        const rest = plain.slice(heading.length).replace(/^\s*(\([^)]*\))?\s*[:\-–]?\s*/, '')
+        if (rest) current.points.push(rest)
+      } else if (isBoldLine) {
+        if (current) sections.push(current)
+        current = { title: plain, points: [] }
+      } else {
+        const point = trimmed.replace(/^[•\-*]\s*/, '').replace(/\*\*/g, '')
+        rawPoints.push(point)
+        if (current) current.points.push(point)
       }
     })
     if (current) sections.push(current)
+    // Format tidak dikenali sama sekali: tampilkan teksnya apa adanya, jangan kosong
+    if (!sections.length && rawPoints.length) return [{ title: 'HASIL ANALISIS AI', points: rawPoints }]
     return sections
   }
 

@@ -6,36 +6,64 @@ const nodemailer = require('nodemailer');
 const { Op } = require('sequelize');
 const sequelize = require('../../config/database');
 const os = require('os');
-const { getAI } = require('../chatbot/chatbot.controller');
+const { getAI, generateText } = require('../chatbot/chatbot.controller');
+const { getConfig } = require('../../utils/systemConfig');
+const { writeLog, audit, pickKeys, changes } = require('../../utils/audit');
+const passport = require('../../config/passport');
 
-// Helper: cek koneksi ke Gemini (request kecil, throw kalau gagal)
+// Batas waktu cek koneksi supaya tombol TEST di panel tidak menggantung
+const CHECK_TIMEOUT_MS = 10000;
+const SMTP_TIMEOUTS = { connectionTimeout: CHECK_TIMEOUT_MS, greetingTimeout: CHECK_TIMEOUT_MS, socketTimeout: CHECK_TIMEOUT_MS };
+
+// Helper: cek koneksi ke Gemini lewat jalur yang sama dengan chatbot (model utama + cadangan,
+// mode API sama). Tanpa tools/pencarian supaya tidak ada biaya tambahan. Throw bila semua gagal.
 const pingGemini = async () => {
   const ai = await getAI();
-  await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: 'ping',
-    config: { maxOutputTokens: 16 },
-  });
+  await generateText(ai, { prompt: 'ping', maxOutputTokens: 64, timeoutMs: CHECK_TIMEOUT_MS });
 };
 
-// Helper: ambil config dari DB, fallback ke .env
-const getConfig = async (key, fallback = null) => {
-  try {
-    const config = await SystemConfig.findOne({ where: { key } });
-    return config?.value || fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-// Helper: simpan log
-const saveLog = async (level, message, source = null, userId = null, metadata = null) => {
-  try {
-    await SystemLog.create({ level, message, source, user_id: userId, metadata });
-  } catch {}
-};
+// Penulisan log memakai helper bersama (utils/audit.js)
+const saveLog = writeLog;
 
 // ===== MONITORING =====
+// Cek SMTP/Gemini membuka koneksi sungguhan, jadi hasilnya di-cache beberapa menit
+// agar polling dashboard tidak terus memanggil layanan eksternal (?force=1 melewati cache).
+const EXTERNAL_CHECK_TTL_MS = 3 * 60 * 1000;
+let externalCheckCache = { at: 0, smtp: 'unknown', ai: 'unknown' };
+
+const checkExternalServices = async (force = false) => {
+  if (!force && Date.now() - externalCheckCache.at < EXTERNAL_CHECK_TTL_MS) return externalCheckCache;
+
+  let smtp = 'unknown';
+  try {
+    const transporter = nodemailer.createTransport({
+      host: await getConfig('SMTP_HOST', process.env.SMTP_HOST),
+      port: parseInt(await getConfig('SMTP_PORT', process.env.SMTP_PORT)),
+      secure: false,
+      ...SMTP_TIMEOUTS,
+      auth: {
+        user: await getConfig('SMTP_USER', process.env.SMTP_USER),
+        pass: await getConfig('SMTP_PASS', process.env.SMTP_PASS)
+      }
+    });
+    await transporter.verify();
+    smtp = 'online';
+  } catch {
+    smtp = 'offline';
+  }
+
+  let ai = 'unknown';
+  try {
+    await pingGemini();
+    ai = 'online';
+  } catch {
+    ai = 'offline';
+  }
+
+  externalCheckCache = { at: Date.now(), smtp, ai };
+  return externalCheckCache;
+};
+
 const getSystemStatus = async (req, res) => {
   try {
     // Status database
@@ -49,34 +77,10 @@ const getSystemStatus = async (req, res) => {
       dbStatus = 'offline';
     }
 
-    // Status SMTP
-    let smtpStatus = 'unknown';
-    try {
-      const smtpHost = await getConfig('SMTP_HOST', process.env.SMTP_HOST);
-      const smtpPort = await getConfig('SMTP_PORT', process.env.SMTP_PORT);
-      const smtpUser = await getConfig('SMTP_USER', process.env.SMTP_USER);
-      const smtpPass = await getConfig('SMTP_PASS', process.env.SMTP_PASS);
-
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: parseInt(smtpPort),
-        secure: false,
-        auth: { user: smtpUser, pass: smtpPass }
-      });
-      await transporter.verify();
-      smtpStatus = 'online';
-    } catch {
-      smtpStatus = 'offline';
-    }
-
-    // Status AI Service
-    let aiStatus = 'unknown';
-    try {
-      await pingGemini();
-      aiStatus = 'online';
-    } catch {
-      aiStatus = 'offline';
-    }
+    // Status SMTP dan AI Service (di-cache, lihat checkExternalServices)
+    const external = await checkExternalServices(req.query.force === '1');
+    const smtpStatus = external.smtp;
+    const aiStatus = external.ai;
 
     // Uptime
     const uptimeSeconds = Math.floor(process.uptime());
@@ -126,9 +130,10 @@ const getSystemStatus = async (req, res) => {
 
 const getSystemLogs = async (req, res) => {
   try {
-    const { level, page = 1, limit = 20 } = req.query;
+    const { level, source, page = 1, limit = 20 } = req.query;
     const where = {};
     if (level) where.level = level;
+    if (source) where.source = source; // mis. 'audit' untuk log audit aksi admin/sysadmin
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const { count, rows } = await SystemLog.findAndCountAll({
@@ -200,6 +205,11 @@ const updateConfigs = async (req, res) => {
       });
     }
 
+    // Kredensial Google berubah: muat ulang strategi OAuth tanpa restart server
+    if (Object.keys(configs).some(k => k.startsWith('GOOGLE_'))) {
+      await passport.loadGoogleStrategy();
+    }
+
     await saveLog('info', 'Konfigurasi sistem diperbarui', 'sysadmin', req.user.user_id, { keys: Object.keys(configs) });
 
     return res.status(200).json({ message: 'Konfigurasi berhasil disimpan' });
@@ -220,6 +230,7 @@ const testSmtp = async (req, res) => {
       host: smtpHost,
       port: parseInt(smtpPort),
       secure: false,
+      ...SMTP_TIMEOUTS,
       auth: { user: smtpUser, pass: smtpPass }
     });
 
@@ -270,7 +281,7 @@ const getUsers = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { full_name, email, password, phone, role = 'customer' } = req.body;
+    const { full_name, email, password, phone, role = 'customer', sysadmin_password } = req.body;
 
     if (!full_name || !email || !password) {
       return res.status(400).json({ message: 'Nama, email, dan password wajib diisi' });
@@ -280,6 +291,18 @@ const createUser = async (req, res) => {
     }
     if (!['customer', 'admin', 'sysadmin'].includes(role)) {
       return res.status(400).json({ message: 'Role tidak valid' });
+    }
+
+    // Membuat akun berhak istimewa (admin/sysadmin) butuh re-autentikasi sysadmin
+    if (role === 'admin' || role === 'sysadmin') {
+      if (!sysadmin_password) {
+        return res.status(400).json({ message: 'Password Administrator Sistem wajib diisi untuk membuat akun admin/sysadmin' });
+      }
+      const actor = await User.findByPk(req.user.user_id);
+      const isMatch = actor && await bcrypt.compare(sysadmin_password, actor.password);
+      if (!isMatch) {
+        return res.status(401).json({ message: 'Password Administrator Sistem tidak valid' });
+      }
     }
 
     const existing = await User.findOne({ where: { email } });
@@ -295,7 +318,9 @@ const createUser = async (req, res) => {
       role, is_active: true, is_verified: true
     });
 
-    await saveLog('info', `Akun baru dibuat: ${email} (${role})`, 'user_management', req.user.user_id);
+    await audit(req, { action: 'create', entity: 'user', entityId: user.user_id,
+      message: `Akun baru dibuat: ${email} (${role})`,
+      after: pickKeys(user, ['full_name', 'email', 'phone', 'role', 'is_active']) });
 
     return res.status(201).json({
       message: 'Akun berhasil dibuat',
@@ -311,7 +336,9 @@ const updateUser = async (req, res) => {
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User tidak ditemukan' });
 
-    const { full_name, email, phone, role, password } = req.body;
+    // Role dan password sengaja diabaikan di sini: keduanya hanya boleh diubah lewat
+    // set-role dan reset-password yang meminta konfirmasi password sysadmin.
+    const { full_name, email, phone } = req.body;
 
     if (email && email !== user.email) {
       const existing = await User.findOne({ where: { email } });
@@ -322,14 +349,12 @@ const updateUser = async (req, res) => {
     if (full_name) updateData.full_name = full_name;
     if (email) updateData.email = email;
     if (phone !== undefined) updateData.phone = phone;
-    if (role && ['customer', 'admin', 'sysadmin'].includes(role)) updateData.role = role;
-    if (password) {
-      if (password.length < 8) return res.status(400).json({ message: 'Password minimal 8 karakter' });
-      updateData.password = await bcrypt.hash(password, 10);
-    }
 
+    const beforeSnap = pickKeys(user, ['full_name', 'email', 'phone', 'role', 'is_active']);
     await user.update(updateData);
-    await saveLog('info', `Akun diupdate: ${user.email}`, 'user_management', req.user.user_id);
+    await audit(req, { action: 'update', entity: 'user', entityId: user.user_id,
+      message: `Akun diupdate: ${user.email}`,
+      ...changes(beforeSnap, pickKeys(user, ['full_name', 'email', 'phone', 'role', 'is_active'])) });
 
     return res.status(200).json({ message: 'Akun berhasil diupdate', user });
   } catch (err) {
@@ -361,7 +386,9 @@ const resetUserPassword = async (req, res) => {
     const hashed = await bcrypt.hash(new_password, 10);
     await user.update({ password: hashed });
 
-    await saveLog('warning', `Password user direset oleh sysadmin: ${user.email}`, 'user_management', req.user.user_id);
+    // Sandi tidak pernah dicatat, hanya fakta bahwa sandi direset
+    await audit(req, { action: 'reset_password', entity: 'user', entityId: user.user_id,
+      message: `Password user direset oleh sysadmin: ${user.email}`, level: 'warning' });
 
     return res.status(200).json({ message: `Password ${user.full_name} berhasil direset` });
   } catch (err) {
@@ -372,6 +399,10 @@ const resetUserPassword = async (req, res) => {
 const toggleUserStatus = async (req, res) => {
   try {
     const { sysadmin_password } = req.body;
+
+    if (String(req.params.id) === String(req.user.user_id)) {
+      return res.status(400).json({ message: 'Tidak bisa menonaktifkan akun sendiri' });
+    }
 
     // Re-autentikasi untuk aksi kritis
     if (!sysadmin_password) {
@@ -387,14 +418,14 @@ const toggleUserStatus = async (req, res) => {
     const user = await User.findByPk(req.params.id);
     if (!user) return res.status(404).json({ message: 'User tidak ditemukan' });
 
+    const wasActive = user.is_active;
     await user.update({ is_active: !user.is_active });
 
-    await saveLog(
-      'warning',
-      `Akun ${user.is_active ? 'diaktifkan' : 'dinonaktifkan'}: ${user.email}`,
-      'user_management',
-      req.user.user_id
-    );
+    await audit(req, {
+      action: 'toggle_status', entity: 'user', entityId: user.user_id, level: 'warning',
+      message: `Akun ${user.is_active ? 'diaktifkan' : 'dinonaktifkan'}: ${user.email}`,
+      before: { is_active: wasActive }, after: { is_active: user.is_active }
+    });
 
     return res.status(200).json({
       message: `User berhasil ${user.is_active ? 'diaktifkan' : 'dinonaktifkan'}`,
@@ -408,6 +439,10 @@ const toggleUserStatus = async (req, res) => {
 const setUserRole = async (req, res) => {
   try {
     const { role, sysadmin_password } = req.body;
+
+    if (String(req.params.id) === String(req.user.user_id)) {
+      return res.status(400).json({ message: 'Tidak bisa mengubah role akun sendiri' });
+    }
 
     // Re-autentikasi untuk ubah role
     if (!sysadmin_password) {
@@ -430,12 +465,11 @@ const setUserRole = async (req, res) => {
     const oldRole = user.role;
     await user.update({ role });
 
-    await saveLog(
-      'warning',
-      `Role user diubah: ${user.email} (${oldRole} → ${role})`,
-      'user_management',
-      req.user.user_id
-    );
+    await audit(req, {
+      action: 'set_role', entity: 'user', entityId: user.user_id, level: 'warning',
+      message: `Role user diubah: ${user.email} (${oldRole} → ${role})`,
+      before: { role: oldRole }, after: { role }
+    });
 
     return res.status(200).json({ message: `Role ${user.full_name} diubah menjadi ${role}`, user });
   } catch (err) {

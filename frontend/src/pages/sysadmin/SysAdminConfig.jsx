@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings, Mail, Globe, Bot, Save, Wifi, WifiOff, Eye, EyeOff } from 'lucide-react'
+import { Mail, Globe, Bot, Save, Wifi, WifiOff, Eye, EyeOff } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
@@ -312,7 +312,7 @@ export default function SysAdminConfig() {
           borderRadius: 'var(--radius-sm)',
           fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400
         }}>
-          💡 Chatbot Mincy AI memakai model <strong>gemini-2.5-flash</strong>. Tidak perlu URL endpoint, cukup API key. Kalau kolom ini dikosongkan, sistem pakai <code>GEMINI_API_KEY</code> dari file .env server. Setelah simpan, klik TEST KONEKSI.
+          💡 Chatbot Mincy AI memakai model Gemini yang diatur lewat <code>GEMINI_MODEL</code> di server (dengan model cadangan otomatis). Tidak perlu URL endpoint, cukup API key. Kalau kolom ini dikosongkan, sistem pakai <code>GEMINI_API_KEY</code> dari file .env server. Setelah simpan, klik TEST KONEKSI.
         </div>
       </div>
     </div>

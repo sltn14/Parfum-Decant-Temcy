@@ -1,8 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
 const http = require('http');
 const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const session = require('express-session');
@@ -38,18 +40,46 @@ const io = new Server(httpServer, {
 
 app.set('io', io);
 
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+// Socket.io: identitas diambil dari JWT saat handshake, bukan dari klien.
+// Klien mengirim { auth: { token } } dan otomatis masuk ke room miliknya sendiri,
+// jadi tidak ada yang bisa mendengarkan notifikasi pengguna lain.
+io.use((socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('Unauthorized'));
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.data.userId = decoded.user_id;
+    next();
+  } catch {
+    next(new Error('Unauthorized'));
+  }
+});
 
-  socket.on('join', (userId) => {
-    socket.join(`user_${userId}`);
-    console.log(`User ${userId} joined room user_${userId}`);
-  });
+io.on('connection', (socket) => {
+  socket.join(`user_${socket.data.userId}`);
 
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    // room ditinggalkan otomatis
   });
 });
+
+// Di belakang reverse proxy (Nginx, dsb.) req.ip adalah IP proxy, sehingga pembatas laju
+// (middleware/rateLimit.middleware.js memakai req.ip) akan menganggap semua pengguna satu IP.
+// Set TRUST_PROXY=<jumlah proxy di depan app> (mis. 1) agar req.ip diambil dari X-Forwarded-For.
+// Default: nonaktif. Jangan diaktifkan bila server diakses langsung tanpa proxy, karena
+// klien bisa memalsukan header X-Forwarded-For dan menghindari rate limit.
+if (process.env.TRUST_PROXY && process.env.TRUST_PROXY !== 'false') {
+  const tp = process.env.TRUST_PROXY;
+  app.set('trust proxy', /^\d+$/.test(tp) ? parseInt(tp, 10) : tp === 'true' ? 1 : tp);
+}
+
+// Header keamanan. CSP dimatikan karena ini API (bukan halaman HTML).
+// crossOriginResourcePolicy 'cross-origin' wajib: gambar /uploads dimuat dari origin
+// frontend (port berbeda), jika tidak gambar produk akan diblokir browser.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 
 // Raw body untuk webhook Midtrans
 app.use('/api/orders/webhook', express.raw({ type: 'application/json' }));
@@ -63,7 +93,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 app.use(session({
-  secret: process.env.JWT_SECRET,
+  secret: process.env.SESSION_SECRET || process.env.JWT_SECRET,
   resave: false,
   saveUninitialized: false
 }));
@@ -90,18 +120,14 @@ app.use('/api/shipping', require('./modules/shipping/shipping.routes'));
 app.use('/api/vouchers', require('./modules/vouchers/voucher.routes'));
 app.use('/api/tracking', require('./modules/tracking/tracking.routes'));
 app.use('/api/stores', require('./modules/stores/store.routes'));
+app.use('/api/couriers', require('./modules/couriers/courier.routes'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Decant Temcy API is running' });
 });
 
-// Helper untuk save log dari controller lain
-app.set('saveLog', async (level, message, source = null, userId = null, metadata = null) => {
-  try {
-    const SystemLog = require('./modules/sysadmin/system_log.model');
-    await SystemLog.create({ level, message, source, user_id: userId, metadata });
-  } catch {}
-});
+// Helper untuk save log dari controller lain (satu implementasi: utils/audit.js)
+app.set('saveLog', require('./utils/audit').writeLog);
 
 const PORT = process.env.PORT || 5000;
 
@@ -125,10 +151,25 @@ const startServer = async () => {
       console.log('Store default dibuat. Ubah alamat lengkapnya di Admin > Cabang Toko.');
     }
 
+    // Kurir pengiriman: buat tabel couriers dan isi kurir bawaan bila kosong (cadangan: config/migration_add_couriers.sql)
+    const Courier = require('./modules/couriers/courier.model');
+    await Courier.sync({ alter: false });
+    if ((await Courier.count()) === 0) {
+      await Courier.bulkCreate(Courier.DEFAULTS);
+      console.log('Kurir bawaan dibuat. Atur di Admin > Kurir.');
+    }
+
+    // Strategi Google OAuth dibuat dari konfigurasi sysadmin (DB) atau .env
+    await passport.loadGoogleStrategy();
+
     httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err) {
     console.error('Failed to connect DB:', err);
   }
 };
 
-startServer();
+// Hanya jalankan server bila file ini dieksekusi langsung (node src/app.js).
+// Saat di-require (mis. oleh supertest di tests/), app diekspor tanpa membuka port atau koneksi DB.
+if (require.main === module) startServer();
+
+module.exports = { app, httpServer, startServer };

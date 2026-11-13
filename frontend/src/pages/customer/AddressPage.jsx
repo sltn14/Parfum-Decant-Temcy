@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Plus, Edit, Trash2, Check, MapPin, X } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
@@ -11,8 +11,11 @@ export default function AddressPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editAddress, setEditAddress] = useState(null)
-  const [provinces, setProvinces] = useState([])
-  const [cities, setCities] = useState([])
+  // Pencarian lokasi (RajaOngkir V2): satu kolom, hasilnya mengisi provinsi, kota, kecamatan, kode pos, dan city_id
+  const [destQuery, setDestQuery] = useState('')
+  const [destResults, setDestResults] = useState([])
+  const [destSearching, setDestSearching] = useState(false)
+  const pickedLabel = useRef('')
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -24,7 +27,6 @@ export default function AddressPage() {
 
   useEffect(() => {
     fetchAddresses()
-    fetchProvinces()
   }, [])
 
   const fetchAddresses = async () => {
@@ -35,39 +37,43 @@ export default function AddressPage() {
     finally { setLoading(false) }
   }
 
-  const fetchProvinces = async () => {
-    try {
-      const res = await api.get('/shipping/provinces')
-      setProvinces(res.data.provinces)
-    } catch {}
+  // Cari lokasi setelah user berhenti mengetik 0,6 detik (hemat kuota API ongkir)
+  useEffect(() => {
+    if (!showModal) return
+    const q = destQuery.trim()
+    if (q.length < 3 || q === pickedLabel.current) { setDestResults([]); return }
+    const timer = setTimeout(async () => {
+      setDestSearching(true)
+      try {
+        const res = await api.get('/shipping/destinations', { params: { search: q } })
+        setDestResults(res.data.destinations || [])
+      } catch { setDestResults([]) }
+      finally { setDestSearching(false) }
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [destQuery, showModal])
+
+  const handleDestQueryChange = (e) => {
+    const value = e.target.value
+    setDestQuery(value)
+    // Mengubah teks setelah memilih berarti lokasi lama tidak berlaku lagi: wajib pilih ulang dari hasil
+    if (value !== pickedLabel.current) {
+      setForm(prev => ({ ...prev, province: '', province_id: '', city: '', city_id: '', district: '', postal_code: '' }))
+    }
   }
 
-  const fetchCities = async (provinceId) => {
-    try {
-      const res = await api.get(`/shipping/cities/${provinceId}`)
-      setCities(res.data.cities)
-    } catch {}
-  }
-
-  const handleProvinceChange = (e) => {
-    const selected = provinces.find(p => p.province_id === e.target.value)
+  const handleDestSelect = (d) => {
+    pickedLabel.current = d.label
+    setDestQuery(d.label)
+    setDestResults([])
     setForm(prev => ({
       ...prev,
-      province_id: e.target.value,
-      province: selected?.province || '',
-      city: '', city_id: ''
-    }))
-    setCities([])
-    if (e.target.value) fetchCities(e.target.value)
-  }
-
-  const handleCityChange = (e) => {
-    const selected = cities.find(c => c.city_id === e.target.value)
-    setForm(prev => ({
-      ...prev,
-      city_id: e.target.value,
-      city: selected?.city_name || '',
-      postal_code: selected?.postal_code || ''
+      province: d.province_name || '',
+      province_id: '',
+      city: d.city_name || '',
+      city_id: String(d.id),
+      district: d.district_name || '',
+      postal_code: d.zip_code || ''
     }))
   }
 
@@ -87,7 +93,9 @@ export default function AddressPage() {
         detail: address.detail,
         is_default: address.is_default
       })
-      if (address.province_id) fetchCities(address.province_id)
+      const label = [address.district, address.city, address.province].filter(Boolean).join(', ')
+      pickedLabel.current = label
+      setDestQuery(label)
     } else {
       setEditAddress(null)
       setForm({
@@ -95,13 +103,19 @@ export default function AddressPage() {
         province: '', province_id: '', city: '', city_id: '',
         district: '', postal_code: '', detail: '', is_default: false
       })
-      setCities([])
+      pickedLabel.current = ''
+      setDestQuery('')
     }
+    setDestResults([])
     setShowModal(true)
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
+    if (!form.city_id) {
+      toast.error('Pilih lokasi dari hasil pencarian')
+      return
+    }
     setSaving(true)
     try {
       if (editAddress) {
@@ -436,38 +450,38 @@ export default function AddressPage() {
                 </div>
               </div>
 
-              <div className="addr-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-                <div>
-                  <label style={labelStyle}>Provinsi</label>
-                  <select value={form.province_id} onChange={handleProvinceChange} required
-                    style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}
-                    onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
-                  >
-                    <option value="">Pilih Provinsi</option>
-                    {provinces.map(p => (
-                      <option key={p.province_id} value={p.province_id}>{p.province}</option>
+              <div style={{ marginBottom: 14, position: 'relative' }}>
+                <label style={labelStyle}>Cari Kecamatan / Kota / Kode Pos</label>
+                <input type="text" value={destQuery} onChange={handleDestQueryChange}
+                  placeholder="Ketik minimal 3 huruf, mis. Kemayoran" autoComplete="off" required style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+                />
+                {destSearching && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 6 }}>Mencari lokasi...</div>
+                )}
+                {destResults.length > 0 && (
+                  <div style={{
+                    position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 20, maxHeight: 220, overflowY: 'auto',
+                    background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)'
+                  }}>
+                    {destResults.map(d => (
+                      <button type="button" key={d.id} onClick={() => handleDestSelect(d)}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px',
+                          background: 'none', border: 'none', borderBottom: '1px solid var(--border-default)',
+                          cursor: 'pointer', color: 'inherit', fontSize: '0.8rem'
+                        }}>
+                        {d.label}
+                      </button>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Kota/Kabupaten</label>
-                  <select value={form.city_id} onChange={handleCityChange} required
-                    disabled={!form.province_id}
-                    style={{
-                      ...inputStyle, appearance: 'none',
-                      cursor: form.province_id ? 'pointer' : 'not-allowed',
-                      opacity: form.province_id ? 1 : 0.5
-                    }}
-                    onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
-                  >
-                    <option value="">Pilih Kota</option>
-                    {cities.map(c => (
-                      <option key={c.city_id} value={c.city_id}>{c.city_name}</option>
-                    ))}
-                  </select>
-                </div>
+                  </div>
+                )}
+                {form.city_id && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 6 }}>
+                    Terpilih: {form.province} · {form.city}
+                  </div>
+                )}
               </div>
 
               <div className="addr-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>

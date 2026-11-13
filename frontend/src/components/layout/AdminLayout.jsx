@@ -2,9 +2,10 @@ import { useState, useRef } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useResponsiveTables, RESPONSIVE_TABLE_CSS } from './responsiveTables'
 import { Toaster } from 'react-hot-toast'
-import { LayoutDashboard, Package, ShoppingBag, BarChart2, Star, Tag, Sparkles, Archive, MapPin, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingBag, BarChart2, Star, Tag, Sparkles, Archive, MapPin, Truck, LogOut, Menu, X } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import api from '../../api/axios'
+import ThemeToggle from '../common/ThemeToggle'
 
 const navLinks = [
   { to: '/admin', icon: <LayoutDashboard size={16} />, label: 'DASHBOARD', exact: true },
@@ -14,6 +15,7 @@ const navLinks = [
   { to: '/admin/reviews', icon: <Star size={16} />, label: 'REVIEWS' },
   { to: '/admin/vouchers', icon: <Tag size={16} />, label: 'VOUCHER' },
   { to: '/admin/stores', icon: <MapPin size={16} />, label: 'CABANG TOKO' },
+  { to: '/admin/couriers', icon: <Truck size={16} />, label: 'KURIR' },
   { to: '/admin/sales-report', icon: <BarChart2 size={16} />, label: 'LAPORAN' },
   { to: '/admin/ai-insight', icon: <Sparkles size={16} />, label: 'AI INSIGHT' },
 ]
@@ -105,6 +107,9 @@ export default function AdminLayout() {
               ADMIN TOKO
             </div>
           </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+          <ThemeToggle size={34} />
         </div>
         <button onClick={handleLogout}
           style={{

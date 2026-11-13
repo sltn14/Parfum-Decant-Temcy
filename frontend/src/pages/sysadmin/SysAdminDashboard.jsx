@@ -158,7 +158,7 @@ export default function SysAdminDashboard() {
             display: `${status?.stats?.active_users_today || 0} user`
           },
           {
-            label: 'TOTAL PENGGUNA',
+            label: 'TOTAL CUSTOMER',
             value: status?.stats?.total_users || 0,
             icon: <Users size={18} />,
             color: '#3b82f6',
@@ -267,7 +267,7 @@ export default function SysAdminDashboard() {
           {[
             { label: 'Platform', value: status?.status?.server?.platform },
             { label: 'Node.js Version', value: status?.status?.server?.node_version },
-            { label: 'Memory Usage', value: status?.status?.server?.memory },
+            { label: 'Memori Server (OS)', value: status?.status?.server?.memory },
             { label: 'Uptime Real-time', value: formatUptime(uptimeSeconds) }
           ].map(({ label, value }) => (
             <div key={label} style={{

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ChevronDown, Upload } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import { API_URL } from '../../config/env'
 import ConfirmModal from '../../components/common/ConfirmModal'
 
 const formatRupiah = (num) =>
@@ -17,6 +18,11 @@ const STATUS_CONFIG = {
 }
 
 const STATUS_OPTIONS = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled']
+
+// Pesanan pickup tidak "dikirim": istilahnya siap diambil / sudah diambil
+const PICKUP_LABELS = { shipped: 'SIAP DIAMBIL', delivered: 'SUDAH DIAMBIL' }
+const statusLabel = (order, key) =>
+  (order.delivery_method === 'pickup' && PICKUP_LABELS[key]) || (STATUS_CONFIG[key] || STATUS_CONFIG.pending).label
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([])
@@ -54,8 +60,10 @@ export default function AdminOrders() {
       toast.success('Status berhasil diupdate!')
       setStatusTarget(null)
       fetchOrders()
-    } catch {
-      toast.error('Gagal update status')
+    } catch (err) {
+      // Backend menolak transisi yang tidak valid dengan pesan yang jelas
+      toast.error(err.response?.data?.message || 'Gagal update status')
+      setStatusTarget(null)
     } finally {
       setUpdatingStatus(false)
     }
@@ -63,8 +71,8 @@ export default function AdminOrders() {
 
   const handleUpdateTracking = async (orderId) => {
     const form = trackingForm[orderId] || {}
-    if (!form.courier && !form.tracking_number) {
-      toast.error('Isi kurir atau nomor resi')
+    if (!form.courier?.trim() || !form.tracking_number?.trim()) {
+      toast.error('Isi kurir dan nomor resi')
       return
     }
     try {
@@ -224,7 +232,7 @@ export default function AdminOrders() {
               {/* Header */}
               <div className="order-header-row"
                 onClick={() => setExpandedOrder(isExpanded ? null : order.order_id)}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-tint)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 <div style={{ flex: 1 }}>
@@ -240,7 +248,7 @@ export default function AdminOrders() {
                       <span style={{
                         marginLeft: 8, fontSize: '0.6rem', fontWeight: 800,
                         color: '#22c55e', letterSpacing: '0.1em'
-                      }}>PICKUP</span>
+                      }}>PICKUP{order.pickup_store ? ` · ${order.pickup_store.name}` : ''}</span>
                     )}
                   </div>
                 </div>
@@ -256,7 +264,7 @@ export default function AdminOrders() {
                   borderRadius: 'var(--radius-xs)',
                   fontSize: '0.6rem', fontWeight: 800,
                   letterSpacing: '0.1em'
-                }}>{status.label}</span>
+                }}>{statusLabel(order, order.status)}</span>
 
                 <ChevronDown size={15}
                   style={{
@@ -322,7 +330,7 @@ export default function AdminOrders() {
                         </strong> · {order.shipping_phone}
                         <br />
                         {order.shipping_address}, {order.shipping_city}
-                        {order.courier && (
+                        {order.delivery_method !== 'pickup' && order.courier && (
                           <div style={{ marginTop: 6 }}>
                             <span style={{
                               fontSize: '0.62rem', fontWeight: 800,
@@ -348,7 +356,7 @@ export default function AdminOrders() {
                             color: 'var(--text-muted)', marginBottom: 8
                           }}>BUKTI BAYAR</div>
                           <a
-                            href={`http://localhost:5000/uploads/payments/${order.payment_proof}`}
+                            href={`${API_URL}/uploads/payments/${order.payment_proof}`}
                             target="_blank" rel="noreferrer"
                             style={{
                               display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -404,12 +412,23 @@ export default function AdminOrders() {
                                   e.currentTarget.style.color = 'var(--text-muted)'
                                 }
                               }}>
-                              {config.label}
+                              {statusLabel(order, s)}
                             </button>
                           )
                         })}
                       </div>
 
+                      {order.delivery_method === 'pickup' ? (
+                        <div style={{
+                          padding: '12px 14px', fontSize: '0.74rem', lineHeight: 1.6,
+                          color: 'var(--text-secondary)', background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border-default)', borderRadius: 'var(--radius-sm)'
+                        }}>
+                          Pesanan <strong>pickup</strong>: diambil sendiri oleh pelanggan di toko, jadi tidak perlu
+                          kurir dan nomor resi. Ubah status ke <strong>Siap Diambil</strong> saat pesanan sudah bisa diambil.
+                        </div>
+                      ) : (
+                        <>
                       {/* Update Tracking */}
                       <div style={{
                         fontSize: '0.6rem', fontWeight: 800,
@@ -460,6 +479,9 @@ export default function AdminOrders() {
                           <Upload size={12} /> SIMPAN TRACKING
                         </button>
                       </div>
+
+                        </>
+                      )}
 
                       {/* Summary */}
                       <div style={{

@@ -1,19 +1,10 @@
 const nodemailer = require('nodemailer');
-const SystemConfig = require('../modules/sysadmin/system_config.model');
+const { getConfig } = require('./systemConfig');
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', {
     style: 'currency', currency: 'IDR', minimumFractionDigits: 0
   }).format(num);
-
-const getConfig = async (key) => {
-  try {
-    const config = await SystemConfig.findOne({ where: { key } });
-    return config?.value || process.env[key] || null;
-  } catch {
-    return process.env[key] || null;
-  }
-};
 
 const createTransporter = async () => {
   const host = await getConfig('SMTP_HOST');

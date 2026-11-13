@@ -1,0 +1,6 @@
+backups/
+deploy/certs/
+
+# data uji beban
+tokens.csv
+backend/scripts/.stock_backup.json

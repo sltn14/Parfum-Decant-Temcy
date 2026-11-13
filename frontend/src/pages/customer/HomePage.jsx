@@ -5,7 +5,7 @@ import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import useAuthStore from '../../store/authStore'
 
-const API_URL = 'http://localhost:5000'
+import { API_URL } from '../../config/env'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
@@ -433,7 +433,7 @@ export default function HomePage() {
               transform: heroVisible ? 'translateY(0)' : 'translateY(20px)',
               transition: 'all 0.7s ease 0.35s'
             }}>
-              Koleksi parfum premium dalam ukuran decant 1ml–5ml.
+              Koleksi parfum premium dalam ukuran decant 1ml–10ml.
               Coba sebelum commit ke botol penuh. Anti blind buy.
             </p>
 

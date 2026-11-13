@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, X, Save } from 'lucide-react'
+import { Plus, Edit, X, Save } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import ConfirmModal from '../../components/common/ConfirmModal'
@@ -183,7 +183,7 @@ export default function AdminVouchers() {
             ) : vouchers.map((v, i) => (
               <tr key={v.voucher_id} style={{
                 borderTop: '1px solid var(--border-default)',
-                background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'
+                background: i % 2 === 0 ? 'transparent' : 'var(--surface-tint)'
               }}>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={{

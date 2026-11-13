@@ -1,9 +1,25 @@
 const Review = require('./review.model');
-const Product = require('../products/product.model');
 const User = require('../auth/user.model');
 const Order = require('../orders/order.model');
 const OrderItem = require('../orders/order_item.model');
-const { Op } = require('sequelize');
+const Product = require('../products/product.model');
+
+const MAX_COMMENT_LENGTH = 1000;
+
+// rating harus bilangan bulat 1-5 (angka atau string angka murni); selain itu NaN
+const parseRating = (v) => {
+  const ok = typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v.trim()));
+  const n = ok ? Number(v) : NaN;
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : NaN;
+};
+
+// komentar opsional; bila ada harus string maksimal 1000 karakter. Mengembalikan { error } atau { value }
+const parseComment = (v) => {
+  if (v === undefined || v === null || v === '') return { value: null };
+  if (typeof v !== 'string') return { error: 'Komentar harus berupa teks' };
+  if (v.length > MAX_COMMENT_LENGTH) return { error: `Komentar maksimal ${MAX_COMMENT_LENGTH} karakter` };
+  return { value: v.trim() || null };
+};
 
 // Get reviews by product
 const getProductReviews = async (req, res) => {
@@ -37,14 +53,25 @@ const getProductReviews = async (req, res) => {
 // Add review — UC-13: hanya untuk pembeli
 const addReview = async (req, res) => {
   try {
-    const { product_id, rating, comment } = req.body;
+    const { product_id, rating: rawRating, comment: rawComment } = req.body;
 
-    if (!product_id || !rating) {
+    if (!product_id || rawRating === undefined || rawRating === null) {
       return res.status(400).json({ message: 'product_id dan rating wajib diisi' });
     }
+    const pid = parseInt(product_id);
+    if (!Number.isInteger(pid)) return res.status(400).json({ message: 'product_id tidak valid' });
 
-    if (rating < 1 || rating > 5) {
-      return res.status(400).json({ message: 'Rating harus antara 1 sampai 5' });
+    const rating = parseRating(rawRating);
+    if (Number.isNaN(rating)) {
+      return res.status(400).json({ message: 'Rating harus bilangan bulat 1 sampai 5' });
+    }
+    const parsedComment = parseComment(rawComment);
+    if (parsedComment.error) return res.status(400).json({ message: parsedComment.error });
+    const comment = parsedComment.value;
+
+    // Produk harus ada (bukan 500 karena pelanggaran foreign key)
+    if (!(await Product.findByPk(pid))) {
+      return res.status(404).json({ message: 'Produk tidak ditemukan' });
     }
 
     // UC-13: Validasi — user harus pernah beli produk ini
@@ -56,7 +83,7 @@ const addReview = async (req, res) => {
       include: [{
         model: OrderItem,
         as: 'items',
-        where: { product_id: parseInt(product_id) },
+        where: { product_id: pid },
         required: true
       }]
     });
@@ -69,18 +96,25 @@ const addReview = async (req, res) => {
 
     // Cek sudah pernah review
     const existing = await Review.findOne({
-      where: { user_id: req.user.user_id, product_id }
+      where: { user_id: req.user.user_id, product_id: pid }
     });
-    if (existing) {
+    if (existing && existing.is_active) {
       return res.status(400).json({ message: 'Kamu sudah memberikan ulasan untuk produk ini' });
     }
 
-    const review = await Review.create({
-      user_id: req.user.user_id,
-      product_id,
-      rating,
-      comment
-    });
+    // Ulasan yang pernah dihapus (soft delete) dipakai lagi supaya satu pengguna tetap satu ulasan per produk
+    let review;
+    if (existing) {
+      await existing.update({ rating, comment, is_active: true });
+      review = existing;
+    } else {
+      review = await Review.create({
+        user_id: req.user.user_id,
+        product_id: pid,
+        rating,
+        comment
+      });
+    }
 
     // Ambil review lengkap dengan user info
     const fullReview = await Review.findByPk(review.review_id, {
@@ -98,12 +132,22 @@ const addReview = async (req, res) => {
 const updateReview = async (req, res) => {
   try {
     const review = await Review.findOne({
-      where: { review_id: req.params.id, user_id: req.user.user_id }
+      where: { review_id: req.params.id, user_id: req.user.user_id, is_active: true }
     });
     if (!review) return res.status(404).json({ message: 'Review tidak ditemukan' });
 
-    await review.update({ rating: req.body.rating, comment: req.body.comment });
-    return res.status(200).json({ message: 'Review berhasil diupdate', review });
+    const rating = parseRating(req.body.rating);
+    if (Number.isNaN(rating)) {
+      return res.status(400).json({ message: 'Rating harus bilangan bulat 1 sampai 5' });
+    }
+    const parsedComment = parseComment(req.body.comment);
+    if (parsedComment.error) return res.status(400).json({ message: parsedComment.error });
+
+    await review.update({ rating, comment: parsedComment.value });
+    const fullReview = await Review.findByPk(review.review_id, {
+      include: [{ model: User, as: 'user', attributes: ['full_name', 'avatar'] }]
+    });
+    return res.status(200).json({ message: 'Review berhasil diupdate', review: fullReview });
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });
   }
@@ -113,7 +157,7 @@ const updateReview = async (req, res) => {
 const deleteReview = async (req, res) => {
   try {
     const review = await Review.findOne({
-      where: { review_id: req.params.id, user_id: req.user.user_id }
+      where: { review_id: req.params.id, user_id: req.user.user_id, is_active: true }
     });
     if (!review) return res.status(404).json({ message: 'Review tidak ditemukan' });
 

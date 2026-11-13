@@ -8,7 +8,9 @@ const Notification = sequelize.define('Notification', {
   title: { type: DataTypes.STRING(200), allowNull: false },
   message: { type: DataTypes.TEXT, allowNull: false },
   type: { type: DataTypes.ENUM('order', 'promo', 'system'), defaultValue: 'system' },
-  is_read: { type: DataTypes.BOOLEAN, defaultValue: false }
+  is_read: { type: DataTypes.BOOLEAN, defaultValue: false },
+  // Alamat halaman di frontend yang dibuka saat notifikasi diklik (mis. /orders/12). Boleh kosong.
+  link: { type: DataTypes.STRING(255), allowNull: true }
 }, { tableName: 'notifications', timestamps: true });
 
 module.exports = Notification;

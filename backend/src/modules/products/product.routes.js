@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const {
-  getProducts, getProduct, createProduct,
+  getProducts, getProduct, getAccords, createProduct,
   updateProduct, deleteProduct, updateStock, getAllProductsAdmin
 } = require('./product.controller')
 const { authenticate, authorizeAdmin } = require('../../middleware/auth.middleware')
@@ -36,6 +36,7 @@ router.get('/admin/all', authenticate, authorizeAdmin, getAllProductsAdmin)
 
 // Public
 router.get('/', getProducts)
+router.get('/accords', getAccords) // sebelum '/:id'
 router.get('/:id', getProduct)
 
 // Admin

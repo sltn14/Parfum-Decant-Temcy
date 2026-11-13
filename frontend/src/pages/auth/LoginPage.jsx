@@ -1,18 +1,31 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, ArrowRight } from 'lucide-react'
 import { FcGoogle } from 'react-icons/fc'
 import api from '../../api/axios'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
+import { API_BASE } from '../../config/env'
 
 export default function LoginPage() {
-  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { setAuth } = useAuthStore()
   const [form, setForm] = useState({ email: '', password: '' })
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
+
+  // Pesan error dari redirect backend setelah login Google gagal (?error=...)
+  useEffect(() => {
+    const error = searchParams.get('error')
+    if (!error) return
+    const messages = {
+      google: 'Login dengan Google gagal. Coba lagi.',
+      google_inactive: 'Akun kamu dinonaktifkan. Hubungi admin untuk informasi lebih lanjut.',
+      google_unavailable: 'Login dengan Google belum dikonfigurasi.'
+    }
+    toast.error(messages[error] || messages.google)
+  }, [searchParams])
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
@@ -31,6 +44,8 @@ export default function LoginPage() {
       setTimeout(() => {
         if (user.role === 'admin') {
           window.location.href = '/admin'
+        } else if (user.role === 'sysadmin') {
+          window.location.href = '/sysadmin'
         } else {
           window.location.href = '/'
         }
@@ -241,7 +256,7 @@ export default function LoginPage() {
             </div>
 
             {/* Google */}
-            <a href="http://localhost:5000/api/auth/google"
+            <a href={`${API_BASE}/auth/google`}
               style={{
                 width: '100%', padding: '14px',
                 background: 'var(--bg-elevated)',

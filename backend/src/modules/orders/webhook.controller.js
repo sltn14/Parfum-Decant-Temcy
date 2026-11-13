@@ -3,7 +3,9 @@ const OrderItem = require('./order_item.model');
 const Notification = require('../notification/notification.model');
 const User = require('../auth/user.model');
 const { sendOrderEmail } = require('../../utils/emailHelper');
-const { restoreStockMl } = require('../../utils/stockMl');
+const { cancelOrderAtomic } = require('../../utils/orderCancel');
+const sequelize = require('../../config/database');
+const { audit } = require('../../utils/audit');
 const crypto = require('crypto');
 
 const midtransWebhook = async (req, res) => {
@@ -70,6 +72,7 @@ const midtransWebhook = async (req, res) => {
             title: notif.title,
             message: notif.message,
             type: notif.type,
+            link: notif.link,
             is_read: false,
             createdAt: notif.createdAt
           });
@@ -87,9 +90,19 @@ const midtransWebhook = async (req, res) => {
         fraud_status === 'accept' ||
         transaction_status === 'settlement'
       ) {
-        // Jangan update kalau sudah paid
-        if (order.status === 'pending') {
-          await order.update({ status: 'paid', paid_at: new Date() });
+        // Jangan update kalau sudah paid. Status dicek ulang di dalam kunci baris
+        // supaya tidak bertabrakan dengan pembatalan yang sedang berjalan.
+        const becamePaid = await sequelize.transaction(async (t) => {
+          const locked = await Order.findByPk(order.order_id, { transaction: t, lock: t.LOCK.UPDATE });
+          if (!locked || locked.status !== 'pending') return false;
+          await locked.update({ status: 'paid', paid_at: new Date() }, { transaction: t });
+          return true;
+        });
+        if (becamePaid) {
+          await order.reload();
+          await audit(null, { action: 'update_status', entity: 'order', entityId: order.order_id,
+            message: `Status pesanan ${order.order_code}: pending → paid (Midtrans)`,
+            before: { status: 'pending' }, after: { status: 'paid' } });
 
           // Notifikasi in-app
           try {
@@ -97,7 +110,8 @@ const midtransWebhook = async (req, res) => {
               user_id: order.user_id,
               title: 'Pembayaran Berhasil!',
               message: `Pembayaran pesanan ${order.order_code} berhasil dikonfirmasi via QRIS.`,
-              type: 'order'
+              type: 'order',
+              link: `/orders/${order.order_id}`
             });
             emitNotif(req.app, order.user_id, notif);
           } catch (e) {
@@ -118,9 +132,16 @@ const midtransWebhook = async (req, res) => {
       transaction_status === 'expire' ||
       transaction_status === 'cancel'
     ) {
-      if (order.status === 'pending') {
-        await order.update({ status: 'cancelled' });
-        await restoreStockMl(order.items);
+      // Idempoten: notifikasi Midtrans ganda tidak memulihkan stok dua kali
+      const result = await cancelOrderAtomic(
+        { order_id: order.order_id },
+        (o) => (o.status === 'pending' ? null : 'bukan pending')
+      );
+      if (result.order && !result.rejected) {
+        order.status = 'cancelled';
+        await audit(null, { action: 'cancel', entity: 'order', entityId: order.order_id,
+          message: `Pesanan ${order.order_code} dibatalkan (Midtrans ${transaction_status})`,
+          before: { status: 'pending' }, after: { status: 'cancelled' } });
 
         // Notifikasi in-app
         try {
@@ -128,7 +149,8 @@ const midtransWebhook = async (req, res) => {
             user_id: order.user_id,
             title: 'Pembayaran Gagal',
             message: `Pembayaran pesanan ${order.order_code} gagal atau kedaluwarsa.`,
-            type: 'order'
+            type: 'order',
+            link: `/orders/${order.order_id}`
           });
           emitNotif(req.app, order.user_id, notif);
         } catch (e) {

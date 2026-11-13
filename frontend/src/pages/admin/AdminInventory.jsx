@@ -4,22 +4,22 @@ import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import ConfirmModal from '../../components/common/ConfirmModal'
 
-const API_URL = 'http://localhost:5000'
-const STOCK_MIN_TOTAL = 10
+import { API_URL } from '../../config/env'
+const STOCK_MIN_ML = 20 // sama dengan batas menipis di backend (STOCK_LOW_THRESHOLD)
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
 
-const SIZES = [1, 2, 3, 5]
+const SIZES = [1, 2, 3, 5, 10]
 
-const getTotalStock = (product) =>
-  (product.stock_1ml || 0) + (product.stock_2ml || 0) + (product.stock_3ml || 0) + (product.stock_5ml || 0)
+// Stok = sisa ml botol besar (products.stock_ml)
+const getTotalStock = (product) => Number(product.stock_ml) || 0
 
 // Status config — dot + label only, no icon clutter
 const getStokStatus = (product) => {
   const total = getTotalStock(product)
   if (total <= 0) return { label: 'Habis', color: '#ef4444', dot: '#ef4444', bg: 'rgba(239,68,68,0.07)', tier: 0 }
-  if (total <= STOCK_MIN_TOTAL) return { label: 'Menipis', color: '#f59e0b', dot: '#f59e0b', bg: 'rgba(245,158,11,0.07)', tier: 1 }
+  if (total <= STOCK_MIN_ML) return { label: 'Menipis', color: '#f59e0b', dot: '#f59e0b', bg: 'rgba(245,158,11,0.07)', tier: 1 }
   return { label: 'Aman', color: '#22c55e', dot: '#22c55e', bg: 'rgba(34,197,94,0.07)', tier: 2 }
 }
 
@@ -36,13 +36,15 @@ export default function AdminInventory() {
   const [filter, setFilter] = useState('semua')
   const [summary, setSummary] = useState({ habis: 0, menipis: 0, aman: 0 })
 
-  useEffect(() => { fetchProducts() }, [page, search])
+  useEffect(() => { fetchProducts() }, [page, search, filter])
 
   const fetchProducts = async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams({ page, limit: 15 })
       if (search) params.set('search', search)
+      // Filter status disaring di server sebelum paginasi
+      if (filter !== 'semua') params.set('status', filter)
       const res = await api.get(`/products/admin/all?${params}`)
       setProducts(res.data.products || [])
       setTotal(res.data.total || 0)
@@ -55,32 +57,25 @@ export default function AdminInventory() {
     }
   }
 
-  const handleStokChange = (productId, size, value) => {
-    setEditStok(prev => ({
-      ...prev,
-      [productId]: { ...(prev[productId] || {}), [size]: value }
-    }))
+  // editStok[productId] = sisa ml baru (string dari input)
+  const handleStokChange = (productId, value) => {
+    setEditStok(prev => ({ ...prev, [productId]: value }))
   }
 
   const hasChange = (productId) => {
-    const edit = editStok[productId]
-    if (!edit) return false
-    return SIZES.some(s => edit[s] !== undefined && edit[s] !== '')
+    const v = editStok[productId]
+    return v !== undefined && v !== ''
   }
 
   const handleUpdateStok = (product) => {
-    const edit = editStok[product.product_id] || {}
-    const hasAny = SIZES.some(s => edit[s] !== undefined && edit[s] !== '')
-    if (!hasAny) { toast.error('Masukkan stok minimal satu ukuran'); return }
-    for (const s of SIZES) {
-      if (edit[s] !== undefined && edit[s] !== '') {
-        if (isNaN(edit[s]) || parseInt(edit[s]) < 0) { toast.error(`Stok ${s}ml tidak valid`); return }
-      }
-    }
+    const v = editStok[product.product_id]
+    if (v === undefined || v === '') { toast.error('Masukkan sisa stok (ml)'); return }
+    if (isNaN(v) || Number(v) < 0) { toast.error('Stok (ml) tidak valid'); return }
     setConfirmTarget({
       product_id: product.product_id,
       name: `${product.brand} ${product.product_name}`,
-      edit
+      before: getTotalStock(product),
+      value: Number(v)
     })
   }
 
@@ -88,12 +83,7 @@ export default function AdminInventory() {
     if (!confirmTarget) return
     setSaving(confirmTarget.product_id)
     try {
-      const payload = {}
-      SIZES.forEach(s => {
-        const val = confirmTarget.edit[s]
-        if (val !== undefined && val !== '') payload[`stock_${s}ml`] = parseInt(val)
-      })
-      await api.patch(`/products/${confirmTarget.product_id}/stock`, payload)
+      await api.patch(`/products/${confirmTarget.product_id}/stock`, { stock_ml: confirmTarget.value })
       toast.success('Stok berhasil diperbarui!')
       const id = confirmTarget.product_id
       setConfirmTarget(null)
@@ -106,27 +96,18 @@ export default function AdminInventory() {
     }
   }
 
-  const filteredProducts = products.filter(p => {
-    const t = getTotalStock(p)
-    if (filter === 'menipis') return t <= STOCK_MIN_TOTAL
-    if (filter === 'aman') return t > STOCK_MIN_TOTAL
-    return true
-  })
+  const filteredProducts = products // sudah difilter di server
 
   const buildConfirmMsg = () => {
     if (!confirmTarget) return ''
-    const lines = SIZES
-      .filter(s => confirmTarget.edit[s] !== undefined && confirmTarget.edit[s] !== '')
-      .map(s => `${s}ml → ${confirmTarget.edit[s]} pcs`)
-      .join(', ')
-    return `Stok "${confirmTarget.name}" akan diperbarui: ${lines}`
+    return `Stok "${confirmTarget.name}" akan diubah dari ${confirmTarget.before} ml menjadi ${confirmTarget.value} ml`
   }
 
   const summaryCards = [
-    { label: 'Stok Habis', value: summary.habis, color: '#ef4444', f: 'menipis',
+    { label: 'Stok Habis', value: summary.habis, color: '#ef4444', f: 'habis',
       desc: 'produk kosong' },
     { label: 'Stok Menipis', value: summary.menipis, color: '#f59e0b', f: 'menipis',
-      desc: `≤ ${STOCK_MIN_TOTAL} pcs total` },
+      desc: `≤ ${STOCK_MIN_ML} ml tersisa` },
     { label: 'Stok Aman', value: summary.aman, color: '#22c55e', f: 'aman',
       desc: 'siap jual' },
   ]
@@ -196,7 +177,7 @@ export default function AdminInventory() {
           const active = filter === f
           return (
             <div key={label}
-              onClick={() => setFilter(prev => prev === f ? 'semua' : f)}
+              onClick={() => { setFilter(prev => prev === f ? 'semua' : f); setPage(1) }}
               style={{
                 background: active ? color + '0d' : 'var(--bg-card)',
                 border: `1.5px solid ${active ? color + '40' : 'var(--border-default)'}`,
@@ -271,10 +252,10 @@ export default function AdminInventory() {
         <div style={{ display: 'flex', gap: 6 }}>
           {[
             { key: 'semua', label: 'Semua' },
-            { key: 'menipis', label: 'Perlu Restock' },
+            { key: 'restock', label: 'Perlu Restock' },
             { key: 'aman', label: 'Aman' }
           ].map(({ key, label }) => (
-            <button key={key} onClick={() => setFilter(key)}
+            <button key={key} onClick={() => { setFilter(key); setPage(1) }}
               style={{
                 padding: '8px 16px',
                 background: filter === key ? 'var(--accent-red)' : 'var(--bg-card)',
@@ -338,14 +319,14 @@ export default function AdminInventory() {
               const status = getStokStatus(product)
               const isSaving = saving === product.product_id
               const changed = hasChange(product.product_id)
-              const edit = editStok[product.product_id] || {}
+              const edit = editStok[product.product_id]
 
               return (
                 <tr key={product.product_id} style={{
                   borderTop: '1px solid var(--border-default)',
                   transition: 'background 0.12s ease'
                 }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.018)'}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-tint)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   {/* Foto */}
@@ -397,41 +378,27 @@ export default function AdminInventory() {
                     )}
                   </td>
 
-                  {/* Stok per ukuran — dengan mini bar */}
-                  <td style={{ padding: '12px 16px', minWidth: 130 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      {SIZES.map(s => {
-                        const stok = product[`stock_${s}ml`] || 0
-                        const maxRef = 20
-                        const pct = Math.min(stok / maxRef, 1)
-                        const barColor = stok <= 0 ? '#ef4444' : stok <= 3 ? '#f59e0b' : '#22c55e'
-                        return (
-                          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{
-                              fontSize: '0.65rem', fontWeight: 700,
-                              color: 'var(--text-muted)', width: 24, flexShrink: 0
-                            }}>{s}ml</span>
-                            {/* mini bar */}
-                            <div style={{
-                              flex: 1, height: 4, borderRadius: 2,
-                              background: 'var(--bg-elevated)', overflow: 'hidden',
-                              maxWidth: 60
-                            }}>
-                              <div style={{
-                                width: `${pct * 100}%`, height: '100%',
-                                background: barColor, borderRadius: 2,
-                                transition: 'width 0.3s ease'
-                              }} />
-                            </div>
-                            <span style={{
-                              fontSize: '0.78rem', fontWeight: 700,
-                              color: stok <= 0 ? '#ef4444' : stok <= 3 ? '#f59e0b' : 'var(--text-primary)',
-                              width: 28, textAlign: 'right', flexShrink: 0
-                            }}>{stok}</span>
+                  {/* Sisa ml botol besar + berapa pcs per ukuran yang masih bisa dijual */}
+                  <td style={{ padding: '12px 16px', minWidth: 150 }}>
+                    {(() => {
+                      const ml = getTotalStock(product)
+                      const initial = Number(product.stock_ml_initial) || 0
+                      const pct = initial > 0 ? Math.min(ml / initial, 1) : (ml > 0 ? 1 : 0)
+                      const barColor = ml <= 0 ? '#ef4444' : ml <= STOCK_MIN_ML ? '#f59e0b' : '#22c55e'
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 800, color: ml <= 0 ? '#ef4444' : 'var(--text-primary)' }}>
+                            {ml} <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700 }}>ml</span>
                           </div>
-                        )
-                      })}
-                    </div>
+                          <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-elevated)', overflow: 'hidden', maxWidth: 110 }}>
+                            <div style={{ width: `${pct * 100}%`, height: '100%', background: barColor, borderRadius: 2, transition: 'width 0.3s ease' }} />
+                          </div>
+                          <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                            {SIZES.map(s => `${s}ml×${Math.floor(ml / s)}`).join(' · ')}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </td>
 
                   {/* Status — dot + label, clean */}
@@ -454,37 +421,29 @@ export default function AdminInventory() {
                     </span>
                   </td>
 
-                  {/* Input stok */}
+                  {/* Input stok (ml) */}
                   <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      {SIZES.map(s => (
-                        <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{
-                            fontSize: '0.65rem', fontWeight: 700,
-                            color: 'var(--text-muted)', width: 24, flexShrink: 0
-                          }}>{s}ml</span>
-                          <input
-                            type="number" min="0" step="1"
-                            value={edit[s] ?? ''}
-                            placeholder={String(product[`stock_${s}ml`] || 0)}
-                            onChange={e => handleStokChange(product.product_id, s, e.target.value)}
-                            style={{
-                              width: 64, padding: '4px 8px',
-                              background: 'var(--bg-input)',
-                              border: `1px solid ${edit[s] !== undefined && edit[s] !== '' ? 'var(--accent-red)' : 'var(--border-default)'}`,
-                              borderRadius: 6,
-                              color: 'var(--text-primary)', fontSize: '0.82rem',
-                              outline: 'none', fontFamily: 'var(--font-sans)',
-                              fontWeight: 600, transition: 'border-color 0.15s ease'
-                            }}
-                            onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
-                            onBlur={e => {
-                              if (edit[s] === undefined || edit[s] === '')
-                                e.target.style.borderColor = 'var(--border-default)'
-                            }}
-                          />
-                        </div>
-                      ))}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="number" min="0" step="0.1"
+                        value={edit ?? ''}
+                        placeholder={String(getTotalStock(product))}
+                        onChange={e => handleStokChange(product.product_id, e.target.value)}
+                        style={{
+                          width: 84, padding: '6px 8px',
+                          background: 'var(--bg-input)',
+                          border: `1px solid ${edit !== undefined && edit !== '' ? 'var(--accent-red)' : 'var(--border-default)'}`,
+                          borderRadius: 6,
+                          color: 'var(--text-primary)', fontSize: '0.82rem',
+                          outline: 'none', fontFamily: 'var(--font-sans)',
+                          fontWeight: 600, transition: 'border-color 0.15s ease'
+                        }}
+                        onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                        onBlur={e => {
+                          if (edit === undefined || edit === '') e.target.style.borderColor = 'var(--border-default)'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)' }}>ml</span>
                     </div>
                   </td>
 

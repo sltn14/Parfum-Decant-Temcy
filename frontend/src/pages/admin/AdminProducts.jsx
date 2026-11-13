@@ -7,13 +7,13 @@ import ConfirmModal from '../../components/common/ConfirmModal'
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
 
-const API_URL = 'http://localhost:5000'
+import { API_URL } from '../../config/env'
 
 const EMPTY_FORM = {
   brand: '', product_name: '', concentration: '', gender: 'Unisex',
   top_notes: '', middle_notes: '', base_notes: '', main_accords: '',
   longevity_display: '', description: '', pros: '', cons: '',
-  price_1ml: '', price_2ml: '', price_3ml: '', price_5ml: '',
+  price_1ml: '', price_2ml: '', price_3ml: '', price_5ml: '', price_10ml: '',
   stock_ml: '', stock_ml_initial: '', is_active: true
 }
 
@@ -97,7 +97,7 @@ export default function AdminProducts() {
     try {
       const params = new URLSearchParams({ page, limit: 10 })
       if (search) params.set('search', search)
-      const res = await api.get(`/products?${params}`)
+      const res = await api.get(`/products/admin/all?${params}`)
       setProducts(res.data.products)
       setTotal(res.data.total)
       setTotalPages(res.data.totalPages)
@@ -127,6 +127,7 @@ export default function AdminProducts() {
         price_2ml: product.price_2ml || '',
         price_3ml: product.price_3ml || '',
         price_5ml: product.price_5ml || '',
+        price_10ml: product.price_10ml || '',
         stock_ml: product.stock_ml || '',
         stock_ml_initial: product.stock_ml_initial || product.stock_ml || '',
         is_active: product.is_active
@@ -146,7 +147,7 @@ export default function AdminProducts() {
     setImagePreview(URL.createObjectURL(file))
   }
 
-  // stock_ml_initial = baseline progress bar. stock_ml dihitung otomatis dari Inventaris
+  // stock_ml_initial = baseline progress bar. stock_ml (sisa) diubah lewat menu Inventaris
   const handleStockInitialChange = (val) => {
     setForm(prev => ({ ...prev, stock_ml_initial: val }))
   }
@@ -157,8 +158,8 @@ export default function AdminProducts() {
     try {
       const formData = new FormData()
       const submitForm = { ...form }
-      // stock_ml dihitung server dari stok vial (Inventaris), jangan dikirim
-      delete submitForm.stock_ml
+      // Edit: stok hanya diubah lewat Inventaris. Tambah produk baru: stock_ml = stok awal (ml)
+      if (editProduct) delete submitForm.stock_ml
       Object.entries(submitForm).forEach(([k, v]) => {
         if (v !== '' && v !== null && v !== undefined) formData.append(k, v)
       })
@@ -192,6 +193,17 @@ export default function AdminProducts() {
       fetchProducts()
     } catch { toast.error('Gagal menghapus') }
     finally { setDeleting(false) }
+  }
+
+  // Produk nonaktif (hasil HAPUS) bisa diaktifkan lagi
+  const handleActivate = async (id) => {
+    try {
+      const fd = new FormData()
+      fd.append('is_active', 'true')
+      await api.put(`/products/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      toast.success('Produk diaktifkan kembali')
+      fetchProducts()
+    } catch { toast.error('Gagal mengaktifkan produk') }
   }
 
   const inputStyle = {
@@ -541,7 +553,7 @@ export default function AdminProducts() {
             ) : products.map((product) => (
               <tr key={product.product_id}
                 style={{ transition: 'background 0.15s ease' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-tint)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 {/* Foto */}
@@ -619,6 +631,20 @@ export default function AdminProducts() {
                       }}>
                       <Edit size={11} /> EDIT
                     </button>
+                    {!product.is_active && (
+                      <button onClick={() => handleActivate(product.product_id)}
+                        style={{
+                          padding: '5px 12px',
+                          background: 'rgba(34,197,94,0.08)',
+                          border: '1px solid rgba(34,197,94,0.2)',
+                          borderRadius: 'var(--radius-xs)',
+                          color: '#22c55e', cursor: 'pointer',
+                          fontSize: '0.62rem', fontWeight: 800,
+                          display: 'flex', alignItems: 'center', gap: 4
+                        }}>
+                        AKTIFKAN
+                      </button>
+                    )}
                     <button onClick={() => setDeleteTarget(product.product_id)}
                       style={{
                         padding: '5px 12px',
@@ -743,12 +769,28 @@ export default function AdminProducts() {
                 <div className="ap-stock-grid">
                   {editProduct && (
                     <div>
-                      <label style={labelStyle}>Sisa ML Sekarang (Otomatis)</label>
+                      <label style={labelStyle}>Sisa ML Sekarang</label>
                       <input type="number" value={form.stock_ml || 0} readOnly disabled
                         style={{ ...inputStyle, opacity: 0.6, cursor: 'not-allowed' }}
                       />
                       <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 500 }}>
-                        Dari Inventaris: {[1, 2, 3, 5].map(s => `${s}ml×${editProduct?.[`stock_${s}ml`] || 0}`).join(' + ')}
+                        Ubah lewat menu Inventaris. Ukuran 1/2/3/5/10 ml bisa dibeli selama sisa ml cukup.
+                      </div>
+                    </div>
+                  )}
+
+                  {!editProduct && (
+                    <div>
+                      <label style={labelStyle}>Stok Awal (ml)</label>
+                      <input type="number" min="0" step="0.1" value={form.stock_ml}
+                        onChange={e => setForm(prev => ({ ...prev, stock_ml: e.target.value }))}
+                        placeholder="Contoh: 100"
+                        style={inputStyle}
+                        onFocus={e => e.target.style.borderColor = 'var(--accent-red)'}
+                        onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+                      />
+                      <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 500 }}>
+                        Sisa ml botol besar saat ini. Bisa diubah lagi di menu Inventaris
                       </div>
                     </div>
                   )}
@@ -765,7 +807,7 @@ export default function AdminProducts() {
                     <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: 4, fontWeight: 500 }}>
                       {editProduct
                         ? 'Total ml awal untuk hitung persentase progress bar'
-                        : 'Total ml awal parfum. Isi stok vial per ukuran di menu Inventaris setelah produk dibuat'}
+                        : 'Total ml awal parfum (kalau kosong dipakai Stok Awal)'}
                     </div>
                   </div>
                 </div>
@@ -793,6 +835,7 @@ export default function AdminProducts() {
                   { label: 'Harga 2ml', name: 'price_2ml', type: 'number' },
                   { label: 'Harga 3ml', name: 'price_3ml', type: 'number' },
                   { label: 'Harga 5ml', name: 'price_5ml', type: 'number' },
+                  { label: 'Harga 10ml', name: 'price_10ml', type: 'number' },
                 ].map(({ label, name, type = 'text', required, placeholder }) => (
                   <div key={name}>
                     <label style={labelStyle}>{label}</label>

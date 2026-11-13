@@ -3,7 +3,11 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
+import './store/themeStore'
+import { initGlassEffects } from './utils/glassEffects'
 import useAuthStore from './store/authStore'
+
+initGlassEffects()
 
 // Bersihkan flag logout yang mungkin tertinggal
 sessionStorage.removeItem('logging-out')

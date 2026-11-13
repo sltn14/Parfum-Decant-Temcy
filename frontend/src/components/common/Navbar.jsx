@@ -5,11 +5,21 @@ import useAuthStore from '../../store/authStore'
 import useCartStore from '../../store/cartStore'
 import useSearchStore from '../../store/searchStore'
 import api from '../../api/axios'
+import { API_URL } from '../../config/env'
 import NotificationBell from './NotificationBell'
+import ThemeToggle from './ThemeToggle'
 
 export default function Navbar() {
   const { user, isAuthenticated, clearAuth } = useAuthStore()
   const { cartCount } = useCartStore()
+  // Satu lonceng saja yang dipasang (desktop atau mobile) supaya socket tidak ganda
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)')
+    const onChange = (e) => setIsMobile(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
   const { setQuery } = useSearchStore()
   const location = useLocation()
   const navigate = useNavigate()
@@ -103,7 +113,7 @@ export default function Navbar() {
 
   const getAvatarSrc = () => {
     if (user?.avatar && user.avatar !== 'default-avatar.png') {
-      return `http://localhost:5000/uploads/avatars/${user.avatar}`
+      return `${API_URL}/uploads/avatars/${user.avatar}`
     }
     return null
   }
@@ -126,12 +136,12 @@ export default function Navbar() {
       <nav style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
         height: 'var(--navbar-height)',
-        background: scrolled ? 'rgba(6,6,10,0.95)' : 'rgba(6,6,10,0.7)',
+        background: scrolled ? 'var(--glass-strong)' : 'var(--glass)',
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
         borderBottom: scrolled
           ? '1px solid rgba(240,46,41,0.12)'
-          : '1px solid rgba(255,255,255,0.04)',
+          : '1px solid var(--border-default)',
         transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
         boxShadow: scrolled ? '0 4px 32px rgba(0,0,0,0.5)' : 'none'
       }}>
@@ -216,7 +226,7 @@ export default function Navbar() {
               <Search size={17} />
             </button>
 
-            <NotificationBell />
+            {!isMobile && <NotificationBell />}
 
             {isAuthenticated && (
               <Link to="/favorites" style={{
@@ -229,6 +239,8 @@ export default function Navbar() {
                 <Heart size={17} />
               </Link>
             )}
+
+            <ThemeToggle />
 
             <Link to="/cart" style={{
               width: 38, height: 38, borderRadius: 'var(--radius-full)',
@@ -259,7 +271,7 @@ export default function Navbar() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: '5px 12px 5px 5px',
-                    background: dropdownOpen ? 'rgba(240,46,41,0.1)' : 'rgba(255,255,255,0.04)',
+                    background: dropdownOpen ? 'rgba(240,46,41,0.1)' : 'var(--surface-tint)',
                     border: `1px solid ${dropdownOpen ? 'rgba(240,46,41,0.3)' : 'var(--border-default)'}`,
                     borderRadius: 'var(--radius-full)',
                     cursor: 'pointer', transition: 'all 0.2s ease'
@@ -288,7 +300,7 @@ export default function Navbar() {
                 {dropdownOpen && (
                   <div style={{
                     position: 'absolute', top: 'calc(100% + 10px)', right: 0,
-                    background: 'rgba(13,13,20,0.98)',
+                    background: 'var(--glass-panel)',
                     backdropFilter: 'blur(24px)',
                     border: '1px solid var(--border-default)',
                     borderRadius: 'var(--radius-lg)',
@@ -317,7 +329,7 @@ export default function Navbar() {
                           color: 'var(--text-secondary)', fontWeight: 600,
                           transition: '150ms ease', textDecoration: 'none'
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--surface-tint)' }}
                         onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.background = 'transparent' }}>
                         {icon} {label}
                       </Link>
@@ -371,6 +383,7 @@ export default function Navbar() {
           <div className="navbar-mobile-right" style={{
             display: 'none', alignItems: 'center', gap: 4, marginLeft: 'auto'
           }}>
+            <ThemeToggle size={36} />
             {/* Search */}
             <button onClick={() => { setSearchOpen(p => !p); setMobileMenuOpen(false) }}
               style={{
@@ -381,6 +394,9 @@ export default function Navbar() {
               }}>
               <Search size={18} />
             </button>
+
+            {/* Notifikasi */}
+            {isMobile && <NotificationBell mobile />}
 
             {/* Cart */}
             <Link to="/cart" style={{
@@ -425,7 +441,7 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div style={{
           position: 'fixed', top: 'var(--navbar-height)', left: 0, right: 0, bottom: 0,
-          zIndex: 99, background: 'rgba(6,6,10,0.98)',
+          zIndex: 99, background: 'var(--glass-strong)',
           backdropFilter: 'blur(24px)',
           overflowY: 'auto',
           animation: 'fadeInDown 0.2s ease',
@@ -578,7 +594,7 @@ export default function Navbar() {
         <div ref={searchRef} style={{
           position: 'fixed', top: 'var(--navbar-height)', left: 0, right: 0,
           zIndex: 99, padding: '20px 20px 24px',
-          background: 'rgba(6,6,10,0.97)',
+          background: 'var(--glass-strong)',
           backdropFilter: 'blur(24px)',
           borderBottom: '1px solid var(--border-default)',
           animation: 'fadeInDown 0.2s ease'

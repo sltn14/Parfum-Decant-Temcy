@@ -1,7 +1,11 @@
 const axios = require('axios');
 
 const RAJAONGKIR_KEY = process.env.RAJAONGKIR_KEY || 'YOUR_API_KEY';
-const BASE_URL = 'https://api.rajaongkir.com/starter';
+// RajaOngkir V2 (Komerce): https://rajaongkir.komerce.id/api/v1 (header `key`)
+const BASE_URL = 'https://rajaongkir.komerce.id/api/v1';
+// ID lokasi asal toko dari endpoint pencarian destinasi (mis. kecamatan toko). Wajib saat memakai key asli.
+const ORIGIN_ID = process.env.RAJAONGKIR_ORIGIN_ID || '';
+const REQUEST_TIMEOUT_MS = 10000;
 
 const MOCK_PROVINCES = [
   { province_id: '1', province: 'Bali' },
@@ -583,28 +587,69 @@ const MOCK_CITIES = {
 
 const USE_MOCK = !process.env.RAJAONGKIR_KEY || process.env.RAJAONGKIR_KEY === 'YOUR_API_KEY';
 
-const getProvinces = async () => {
-  if (USE_MOCK) return MOCK_PROVINCES;
-  try {
-    const res = await axios.get(`${BASE_URL}/province`, {
-      headers: { key: RAJAONGKIR_KEY }
+// V2 tidak punya daftar provinsi/kota; dua fungsi ini hanya melayani data mock (mode tanpa key).
+const getProvinces = async () => MOCK_PROVINCES;
+const getCities = async (provinceId) => MOCK_CITIES[provinceId] || [];
+
+// Cache hasil pencarian destinasi (kuota paket Starter hanya 100 hit/hari). Kunci: kata pencarian huruf kecil.
+const DEST_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const DEST_CACHE_MAX = 500;
+const destCache = new Map();
+
+// Bentuk hasil sama dengan V2: { id, label, province_name, city_name, district_name, subdistrict_name, zip_code }
+const searchMockDestinations = (search) => {
+  const q = search.toLowerCase();
+  const out = [];
+  MOCK_PROVINCES.forEach(p => {
+    (MOCK_CITIES[p.province_id] || []).forEach(c => {
+      if (c.city_name.toLowerCase().includes(q) || p.province.toLowerCase().includes(q)) {
+        out.push({
+          id: Number(c.city_id), label: `${c.city_name}, ${p.province}`,
+          province_name: p.province, city_name: c.city_name,
+          district_name: '', subdistrict_name: '', zip_code: c.postal_code || ''
+        });
+      }
     });
-    return res.data.rajaongkir.results;
-  } catch { return MOCK_PROVINCES; }
+  });
+  return out.slice(0, 20);
 };
 
-const getCities = async (provinceId) => {
-  if (USE_MOCK) return MOCK_CITIES[provinceId] || [];
+const searchDestinations = async (search) => {
+  const keyword = String(search || '').trim().toLowerCase();
+  if (keyword.length < 3) return [];
+  if (USE_MOCK) return searchMockDestinations(keyword);
+
+  const cached = destCache.get(keyword);
+  if (cached && Date.now() - cached.at < DEST_CACHE_TTL_MS) return cached.data;
+
   try {
-    const res = await axios.get(`${BASE_URL}/city?province=${provinceId}`, {
-      headers: { key: RAJAONGKIR_KEY }
+    const res = await axios.get(`${BASE_URL}/destination/domestic-destination`, {
+      params: { search: keyword, limit: 20, offset: 0 },
+      headers: { key: RAJAONGKIR_KEY },
+      timeout: REQUEST_TIMEOUT_MS
     });
-    return res.data.rajaongkir.results;
-  } catch { return MOCK_CITIES[provinceId] || []; }
+    const data = Array.isArray(res.data?.data) ? res.data.data : [];
+    if (destCache.size >= DEST_CACHE_MAX) destCache.delete(destCache.keys().next().value);
+    destCache.set(keyword, { at: Date.now(), data });
+    return data;
+  } catch (err) {
+    // 404 = tidak ada lokasi yang cocok (bukan kesalahan); selain itu catat supaya mudah ditelusuri
+    if (err.response?.status !== 404) {
+      console.error('RajaOngkir destinasi gagal:', err.response?.status || err.message);
+    }
+    return [];
+  }
 };
+
+// Mengembalikan daftar layanan dalam bentuk lama: [{ service, description, cost: [{ value, etd, note }] }]
+// supaya utils/shipping.js, order.controller.js, dan CheckoutPage tidak perlu berubah.
+const COD_SERVICE = [
+  { service: 'COD', description: 'Cash on Delivery - Owner antar langsung', cost: [{ value: 0, etd: '1', note: 'Area tertentu' }] }
+];
 
 const getCost = async (destination, weight, courier) => {
-  const ORIGIN_CITY_ID = '399'; // Semarang
+  // COD ditangani sendiri (ongkir 0), tidak ada di RajaOngkir
+  if (String(courier).toLowerCase() === 'cod') return COD_SERVICE;
 
   if (USE_MOCK) {
     const baseCost = {
@@ -628,15 +673,34 @@ const getCost = async (destination, weight, courier) => {
     return baseCost[courier.toLowerCase()] || baseCost.jne;
   }
 
+  if (!ORIGIN_ID) {
+    console.error('RAJAONGKIR_ORIGIN_ID belum diisi: ongkir tidak bisa dihitung dengan key asli');
+    return [];
+  }
+
   try {
-    const res = await axios.post(`${BASE_URL}/cost`, {
-      origin: ORIGIN_CITY_ID,
-      destination,
-      weight,
-      courier
-    }, { headers: { key: RAJAONGKIR_KEY } });
-    return res.data.rajaongkir.results[0]?.costs || [];
-  } catch { return []; }
+    const body = new URLSearchParams({
+      origin: String(ORIGIN_ID),
+      destination: String(destination),
+      weight: String(Math.max(1, Math.round(weight))),
+      courier: String(courier).toLowerCase()
+    });
+    const res = await axios.post(`${BASE_URL}/calculate/domestic-cost`, body.toString(), {
+      headers: { key: RAJAONGKIR_KEY, 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: REQUEST_TIMEOUT_MS
+    });
+    const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+    // JNE Trucking (JTR*) untuk barang berat; tidak relevan untuk decant (50 g per botol), jadi disembunyikan
+    return rows.filter(r => !/^JTR/i.test(String(r.service || ''))).map(r => ({
+      service: r.service,
+      description: r.description || r.service,
+      cost: [{ value: Number(r.cost), etd: String(r.etd || '').replace(/\s*(days?|hari)\b/gi, '').trim(), note: '' }] // frontend menambah kata "hari"
+    }));
+  } catch (err) {
+    // 400 = tarif tidak ditemukan untuk rute/kurir ini, 422 = kode kurir tidak valid
+    console.error('RajaOngkir ongkir gagal:', err.response?.status || err.message);
+    return [];
+  }
 };
 
-module.exports = { getProvinces, getCities, getCost };
+module.exports = { getProvinces, getCities, getCost, searchDestinations };

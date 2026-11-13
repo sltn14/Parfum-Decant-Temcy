@@ -1,0 +1,84 @@
+
+> backend@1.0.0 bench
+> node scripts/bench.js
+
+◇ injected env (23) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+◇ injected env (0) from .env // tip: ⌘ override existing { override: true }
+Error
+    at Query.run (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\sequelize\lib\dialects\postgres\query.js:50:25)
+    at D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\sequelize\lib\sequelize.js:315:28
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PostgresQueryInterface.insert (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\sequelize\lib\dialects\abstract\query-interface.js:308:21)
+    at async model.save (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\sequelize\lib\model.js:2490:35)
+    at async OrderItem.create (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\sequelize\lib\model.js:1362:12)
+    at async seed (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\scripts\bench.js:81:5)
+    at async D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\scripts\bench.js:109:53 {
+  name: 'SequelizeForeignKeyConstraintError',
+  parent: error: insert or update on table "order_items" violates foreign key constraint "order_items_order_id_fkey"
+      at parseErrorMessage (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\pg-protocol\dist\parser.js:305:11)
+      at Parser.handlePacket (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\pg-protocol\dist\parser.js:143:27)
+      at Parser.parse (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\pg-protocol\dist\parser.js:37:38)
+      at Socket.<anonymous> (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\pg-protocol\dist\index.js:12:42)
+      at Socket.emit (node:events:507:28)
+      at addChunk (node:internal/streams/readable:559:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:510:3)
+      at Readable.push (node:internal/streams/readable:390:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+    length: 270,
+    severity: 'ERROR',
+    code: '23503',
+    detail: 'Key (order_id)=(1) is not present in table "orders".',
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: 'public',
+    table: 'order_items',
+    column: undefined,
+    dataType: undefined,
+    constraint: 'order_items_order_id_fkey',
+    file: 'ri_triggers.c',
+    line: '2783',
+    routine: 'ri_ReportViolation',
+    sql: 'INSERT INTO "order_items" ("order_item_id","order_id","product_id","product_name","brand","size_ml","quantity","price") VALUES (DEFAULT,$1,$2,$3,$4,$5,$6,$7) RETURNING "order_item_id","order_id","product_id","product_name","brand","size_ml","quantity","price";',
+    parameters: [ 1, 1, 'Bench Parfum 1', 'Brand 1', 5, 2, 42000 ]
+  },
+  original: error: insert or update on table "order_items" violates foreign key constraint "order_items_order_id_fkey"
+      at parseErrorMessage (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\pg-protocol\dist\parser.js:305:11)
+      at Parser.handlePacket (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\pg-protocol\dist\parser.js:143:27)
+      at Parser.parse (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\pg-protocol\dist\parser.js:37:38)
+      at Socket.<anonymous> (D:\Kuliah\Teknik Komputer 23\Semester 7\Angkatan 2023\Projek Desain Capstone II\Developer\decant-temcy\backend\node_modules\pg-protocol\dist\index.js:12:42)
+      at Socket.emit (node:events:507:28)
+      at addChunk (node:internal/streams/readable:559:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:510:3)
+      at Readable.push (node:internal/streams/readable:390:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+    length: 270,
+    severity: 'ERROR',
+    code: '23503',
+    detail: 'Key (order_id)=(1) is not present in table "orders".',
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: 'public',
+    table: 'order_items',
+    column: undefined,
+    dataType: undefined,
+    constraint: 'order_items_order_id_fkey',
+    file: 'ri_triggers.c',
+    line: '2783',
+    routine: 'ri_ReportViolation',
+    sql: 'INSERT INTO "order_items" ("order_item_id","order_id","product_id","product_name","brand","size_ml","quantity","price") VALUES (DEFAULT,$1,$2,$3,$4,$5,$6,$7) RETURNING "order_item_id","order_id","product_id","product_name","brand","size_ml","quantity","price";',
+    parameters: [ 1, 1, 'Bench Parfum 1', 'Brand 1', 5, 2, 42000 ]
+  },
+  sql: 'INSERT INTO "order_items" ("order_item_id","order_id","product_id","product_name","brand","size_ml","quantity","price") VALUES (DEFAULT,$1,$2,$3,$4,$5,$6,$7) RETURNING "order_item_id","order_id","product_id","product_name","brand","size_ml","quantity","price";',
+  parameters: [ 1, 1, 'Bench Parfum 1', 'Brand 1', 5, 2, 42000 ],
+  table: 'order_items',
+  fields: null,
+  value: undefined,
+  index: 'order_items_order_id_fkey',
+  reltype: undefined
+}

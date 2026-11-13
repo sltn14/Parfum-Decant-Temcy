@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Clock, Truck, Store } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import AdminContactCard from '../../components/common/AdminContactCard'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
@@ -17,6 +18,7 @@ const STATUS_CONFIG = {
 }
 
 const STEPS = ['MENUNGGU', 'DIBAYAR', 'DIPROSES', 'DIKIRIM', 'SELESAI']
+const PICKUP_STEPS = ['MENUNGGU', 'DIBAYAR', 'DIPROSES', 'SIAP DIAMBIL', 'SELESAI']
 
 export default function OrderDetailPage() {
   const { id } = useParams()
@@ -111,6 +113,9 @@ export default function OrderDetailPage() {
   if (!order) return null
 
   const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending
+  const isPickup = order.delivery_method === 'pickup'
+  const steps = isPickup ? PICKUP_STEPS : STEPS
+  const statusText = isPickup && { shipped: 'SIAP DIAMBIL', delivered: 'SUDAH DIAMBIL' }[order.status] || status.label
   const currentStep = status.step
 
   return (
@@ -183,8 +188,12 @@ export default function OrderDetailPage() {
             border: `1px solid ${status.border}`,
             borderRadius: 'var(--radius-xs)',
             fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.15em'
-          }}>{status.label}</span>
+          }}>{statusText}</span>
         </div>
+
+        {order.status !== 'cancelled' && (
+          <AdminContactCard orderCode={order.order_code} storeId={order.pickup_store_id} />
+        )}
 
         {order.status !== 'cancelled' && (
           <div className="od-steps-wrap" style={{
@@ -194,10 +203,10 @@ export default function OrderDetailPage() {
             padding: '22px 28px', marginBottom: 24
           }}>
             <div className="od-steps-inner" style={{ display: 'flex', alignItems: 'center' }}>
-              {STEPS.map((step, i) => (
+              {steps.map((step, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center',
-                  flex: i < STEPS.length - 1 ? 1 : 'none'
+                  flex: i < steps.length - 1 ? 1 : 'none'
                 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
                     <div className="od-step-circle" style={{
@@ -220,7 +229,7 @@ export default function OrderDetailPage() {
                       whiteSpace: 'nowrap'
                     }}>{step}</span>
                   </div>
-                  {i < STEPS.length - 1 && (
+                  {i < steps.length - 1 && (
                     <div className="od-step-line" style={{
                       flex: 1, height: 1, margin: '0 8px 18px',
                       background: i + 1 < currentStep ? 'var(--accent-red)' : 'var(--border-default)',

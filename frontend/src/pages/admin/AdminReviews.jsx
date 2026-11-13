@@ -104,7 +104,7 @@ export default function AdminReviews() {
                 borderTop: '1px solid var(--border-default)',
                 transition: 'background 0.15s ease'
               }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-tint)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 <td style={{ padding: '12px 16px' }}>

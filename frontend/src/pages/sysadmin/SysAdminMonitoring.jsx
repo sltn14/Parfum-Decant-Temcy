@@ -10,21 +10,23 @@ export default function SysAdminMonitoring() {
   const [totalPages, setTotalPages] = useState(1)
   const [page, setPage] = useState(1)
   const [levelFilter, setLevelFilter] = useState('')
+  const [auditOnly, setAuditOnly] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingLogs, setLoadingLogs] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => { fetchAll() }, [])
-  useEffect(() => { fetchLogs() }, [page, levelFilter])
+  useEffect(() => { fetchLogs() }, [page, levelFilter, auditOnly])
 
-  const fetchAll = async () => {
+  const fetchAll = async (force = false) => {
     setLoading(true)
     setLoadingLogs(true)
     try {
       const params = new URLSearchParams({ page, limit: 15 })
       if (levelFilter) params.set('level', levelFilter)
+      if (auditOnly) params.set('source', 'audit')
       const [statusRes, logsRes] = await Promise.all([
-        api.get('/sysadmin/monitoring/status'),
+        api.get(`/sysadmin/monitoring/status${force ? '?force=1' : ''}`),
         api.get(`/sysadmin/monitoring/logs?${params}`)
       ])
       setStatus(statusRes.data)
@@ -43,6 +45,7 @@ export default function SysAdminMonitoring() {
     try {
       const params = new URLSearchParams({ page, limit: 15 })
       if (levelFilter) params.set('level', levelFilter)
+      if (auditOnly) params.set('source', 'audit')
       const res = await api.get(`/sysadmin/monitoring/logs?${params}`)
       setLogs(res.data.logs)
       setTotal(res.data.total)
@@ -53,7 +56,7 @@ export default function SysAdminMonitoring() {
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await fetchAll()
+    await fetchAll(true)
     setRefreshing(false)
     toast.success('Data diperbarui!')
   }
@@ -213,10 +216,10 @@ export default function SysAdminMonitoring() {
               {[
                 { label: 'Platform', value: status?.status?.server?.platform },
                 { label: 'Node.js', value: status?.status?.server?.node_version },
-                { label: 'Memory', value: status?.status?.server?.memory },
+                { label: 'Memori Server (OS)', value: status?.status?.server?.memory },
                 { label: 'Uptime', value: status?.status?.server?.uptime },
                 { label: 'User Aktif Hari Ini', value: `${status?.stats?.active_users_today || 0} user` },
-                { label: 'Total Pengguna', value: `${status?.stats?.total_users || 0} user` },
+                { label: 'Total Customer', value: `${status?.stats?.total_users || 0} user` },
               ].map(({ label, value }) => (
                 <div key={label} style={{
                   padding: '12px 14px', background: 'var(--bg-elevated)',
@@ -260,6 +263,19 @@ export default function SysAdminMonitoring() {
                 {level === '' ? 'SEMUA' : level.toUpperCase()}
               </button>
             ))}
+            <button onClick={() => { setAuditOnly(prev => !prev); setPage(1) }}
+              style={{
+                padding: '6px 12px',
+                background: auditOnly ? '#8b5cf6' : 'var(--bg-elevated)',
+                border: `1px solid ${auditOnly ? 'transparent' : 'var(--border-default)'}`,
+                borderRadius: 'var(--radius-xs)',
+                color: auditOnly ? 'white' : 'var(--text-muted)',
+                fontWeight: 800, fontSize: '0.62rem',
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+                cursor: 'pointer', transition: 'all 0.15s ease'
+              }}>
+              AUDIT
+            </button>
           </div>
         </div>
 

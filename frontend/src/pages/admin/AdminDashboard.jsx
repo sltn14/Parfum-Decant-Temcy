@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Package, ShoppingBag, TrendingUp, ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'

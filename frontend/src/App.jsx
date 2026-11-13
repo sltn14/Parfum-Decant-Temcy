@@ -33,6 +33,7 @@ import AdminVouchers from './pages/admin/AdminVouchers'
 import AdminInventory from './pages/admin/AdminInventory'
 import AdminAIInsight from './pages/admin/AdminAIInsight'
 import AdminStores from './pages/admin/AdminStores'
+import AdminCouriers from './pages/admin/AdminCouriers'
 
 // SysAdmin Pages
 import SysAdminDashboard from './pages/sysadmin/SysAdminDashboard'
@@ -99,7 +100,7 @@ function App() {
         <Route index element={<CustomerOnlyRoute><HomePage /></CustomerOnlyRoute>} />
         <Route path="catalog" element={<CustomerOnlyRoute><CatalogPage /></CustomerOnlyRoute>} />
         <Route path="product/:id" element={<CustomerOnlyRoute><ProductDetailPage /></CustomerOnlyRoute>} />
-        <Route path="chatbot" element={<CustomerOnlyRoute><ChatbotPage /></CustomerOnlyRoute>} />
+        <Route path="chatbot" element={<ProtectedRoute><CustomerOnlyRoute><ChatbotPage /></CustomerOnlyRoute></ProtectedRoute>} />
         <Route path="cart" element={<ProtectedRoute><CustomerOnlyRoute><CartPage /></CustomerOnlyRoute></ProtectedRoute>} />
         <Route path="checkout" element={<ProtectedRoute><CustomerOnlyRoute><CheckoutPage /></CustomerOnlyRoute></ProtectedRoute>} />
         <Route path="orders" element={<ProtectedRoute><CustomerOnlyRoute><OrdersPage /></CustomerOnlyRoute></ProtectedRoute>} />
@@ -121,6 +122,7 @@ function App() {
         <Route path="inventory" element={<AdminInventory />} />
         <Route path="ai-insight" element={<AdminAIInsight />} />
         <Route path="stores" element={<AdminStores />} />
+        <Route path="couriers" element={<AdminCouriers />} />
       </Route>
 
       {/* Administrator Sistem */}

@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { Search, X, Plus, Edit, Eye, EyeOff, Key, Shield, UserX, UserCheck } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
-import ConfirmModal from '../../components/common/ConfirmModal'
+import useAuthStore from '../../store/authStore'
 
 export default function SysAdminUsers() {
+  const me = useAuthStore(s => s.user)
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -18,7 +19,7 @@ export default function SysAdminUsers() {
   const [saving, setSaving] = useState(false)
   const [showPass, setShowPass] = useState(false)
   const [form, setForm] = useState({
-    full_name: '', email: '', password: '', phone: '', role: 'customer'
+    full_name: '', email: '', password: '', phone: '', role: 'customer', sysadmin_password: ''
   })
 
   // Modal reset password
@@ -60,7 +61,7 @@ export default function SysAdminUsers() {
 
   const openAddModal = () => {
     setEditUser(null)
-    setForm({ full_name: '', email: '', password: '', phone: '', role: 'customer' })
+    setForm({ full_name: '', email: '', password: '', phone: '', role: 'customer', sysadmin_password: '' })
     setShowPass(false)
     setShowModal(true)
   }
@@ -87,12 +88,13 @@ export default function SysAdminUsers() {
         if (form.full_name) payload.full_name = form.full_name
         if (form.email) payload.email = form.email
         if (form.phone !== undefined) payload.phone = form.phone
-        if (form.role) payload.role = form.role
-        if (form.password) payload.password = form.password
         await api.put(`/sysadmin/users/${editUser.user_id}`, payload)
         toast.success('Akun berhasil diupdate!')
       } else {
-        await api.post('/sysadmin/users', form)
+        // Konfirmasi password sysadmin hanya dikirim untuk role berhak istimewa
+        const payload = { ...form }
+        if (form.role === 'customer') delete payload.sysadmin_password
+        await api.post('/sysadmin/users', payload)
         toast.success('Akun berhasil dibuat!')
       }
       setShowModal(false)
@@ -288,12 +290,13 @@ export default function SysAdminUsers() {
               <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: 700 }}>TIDAK ADA AKUN</td></tr>
             ) : users.map(user => {
               const roleStyle = getRoleColor(user.role)
+              const isSelf = user.user_id === me?.user_id
               return (
                 <tr key={user.user_id} style={{
                   borderTop: '1px solid var(--border-default)',
                   transition: 'background 0.15s ease'
                 }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-tint)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   <td style={{ padding: '12px 16px' }}>
@@ -357,7 +360,7 @@ export default function SysAdminUsers() {
                         <Key size={10} /> RESET PW
                       </button>
                       {/* Set Role */}
-                      <button onClick={() => {
+                      <button disabled={isSelf} title={isSelf ? 'Tidak bisa mengubah role akun sendiri' : undefined} onClick={() => {
                         setRoleTarget(user)
                         setRoleForm({ role: user.role, sysadmin_password: '' })
                         setShowRoleModal(true)
@@ -366,19 +369,21 @@ export default function SysAdminUsers() {
                           display: 'flex', alignItems: 'center', gap: 4, padding: '5px 9px',
                           background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)',
                           borderRadius: 'var(--radius-xs)', color: '#8b5cf6',
-                          cursor: 'pointer', fontSize: '0.62rem', fontWeight: 800, transition: 'all 0.15s ease'
+                          opacity: isSelf ? 0.35 : 1,
+                          cursor: isSelf ? 'not-allowed' : 'pointer', fontSize: '0.62rem', fontWeight: 800, transition: 'all 0.15s ease'
                         }}>
                         <Shield size={10} /> ROLE
                       </button>
                       {/* Toggle Status */}
-                      <button onClick={() => { setToggleTarget(user); setShowToggleModal(true); setToggleSysPass('') }}
+                      <button disabled={isSelf} title={isSelf ? 'Tidak bisa menonaktifkan akun sendiri' : undefined} onClick={() => { setToggleTarget(user); setShowToggleModal(true); setToggleSysPass('') }}
                         style={{
+                          opacity: isSelf ? 0.35 : 1,
                           display: 'flex', alignItems: 'center', gap: 4, padding: '5px 9px',
                           background: user.is_active ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)',
                           border: `1px solid ${user.is_active ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)'}`,
                           borderRadius: 'var(--radius-xs)',
                           color: user.is_active ? '#ef4444' : '#22c55e',
-                          cursor: 'pointer', fontSize: '0.62rem', fontWeight: 800, transition: 'all 0.15s ease'
+                          cursor: isSelf ? 'not-allowed' : 'pointer', fontSize: '0.62rem', fontWeight: 800, transition: 'all 0.15s ease'
                         }}>
                         {user.is_active ? <><UserX size={10} /> NONAKTIF</> : <><UserCheck size={10} /> AKTIFKAN</>}
                       </button>
@@ -443,6 +448,8 @@ export default function SysAdminUsers() {
                     onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
                   />
                 </div>
+                {/* Role dan password hanya diubah lewat dialog ROLE / RESET PW (butuh password sysadmin) */}
+                {!editUser && (<>
                 <div>
                   <label style={labelStyle}>
                     Password {editUser && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(kosongkan jika tidak ingin mengubah)</span>}
@@ -473,6 +480,19 @@ export default function SysAdminUsers() {
                     <option value="sysadmin">Administrator Sistem</option>
                   </select>
                 </div>
+                {(form.role === 'admin' || form.role === 'sysadmin') && (
+                  <div>
+                    <label style={labelStyle}>Konfirmasi password sysadmin</label>
+                    <input type="password" value={form.sysadmin_password}
+                      onChange={e => setForm({ ...form, sysadmin_password: e.target.value })}
+                      required placeholder="Password akun Anda" autoComplete="current-password"
+                      style={inputStyle}
+                      onFocus={e => e.target.style.borderColor = '#8b5cf6'}
+                      onBlur={e => e.target.style.borderColor = 'var(--border-default)'}
+                    />
+                  </div>
+                )}
+                </>)}
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
                 <button type="button" onClick={() => setShowModal(false)}

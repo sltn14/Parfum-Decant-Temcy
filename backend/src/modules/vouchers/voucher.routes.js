@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { checkVoucher, createVoucher, getVouchers, updateVoucher, deleteVoucher } = require('./voucher.controller');
+const { checkVoucher, getActiveVouchers, createVoucher, getVouchers, updateVoucher, deleteVoucher } = require('./voucher.controller');
 const { authenticate, authorizeAdmin } = require('../../middleware/auth.middleware');
 
+router.get('/active', authenticate, getActiveVouchers);
 router.post('/check', authenticate, checkVoucher);
 router.get('/admin', authenticate, authorizeAdmin, getVouchers);
 router.post('/admin', authenticate, authorizeAdmin, createVoucher);

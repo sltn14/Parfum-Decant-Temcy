@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Clock, Package } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
+import AdminContactCard from '../../components/common/AdminContactCard'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
@@ -31,22 +32,36 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState('')
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [counts, setCounts] = useState({})
+  const [loadingMore, setLoadingMore] = useState(false)
 
-  useEffect(() => { fetchOrders() }, [])
+  // Filter status diterapkan di server; ganti filter = mulai dari halaman 1
+  useEffect(() => { fetchOrders(1, filterStatus) }, [filterStatus])
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (pageNum, status) => {
+    const append = pageNum > 1
+    append ? setLoadingMore(true) : setLoading(true)
     try {
-      const res = await api.get('/orders/my-orders')
-      setOrders(res.data.orders)
+      const params = new URLSearchParams({ page: pageNum, limit: 10 })
+      if (status) params.set('status', status)
+      const res = await api.get(`/orders/my-orders?${params}`)
+      setOrders(prev => append ? [...prev, ...res.data.orders] : res.data.orders)
+      setPage(res.data.page)
+      setTotalPages(res.data.totalPages)
+      setTotal(res.data.total)
+      setCounts(res.data.counts || {})
     } catch { toast.error('Gagal memuat pesanan') }
-    finally { setLoading(false) }
+    finally { setLoading(false); setLoadingMore(false) }
   }
 
-  const filtered = filterStatus
-    ? orders.filter(o => o.status === filterStatus)
-    : orders
+  const filtered = orders
+  const allCount = Object.values(counts).reduce((a, b) => a + b, 0)
 
-  if (loading) return (
+  // Spinner penuh hanya untuk muatan pertama; ganti tab tidak mengosongkan halaman
+  if (loading && orders.length === 0 && allCount === 0) return (
     <div style={{
       paddingTop: 'var(--navbar-height)', minHeight: '100vh',
       display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -318,15 +333,15 @@ export default function OrdersPage() {
           <h1 className="orders-h1">PESANAN SAYA</h1>
           <div className="orders-count">
             <span style={{ color: 'var(--text-primary)', fontWeight: 900 }}>{filtered.length}</span>
-            {filterStatus ? ' pesanan' : ` dari ${orders.length} pesanan`}
+            {` dari ${total} pesanan`}
           </div>
         </div>
 
         {/* Filter Tabs */}
-        {orders.length > 0 && (
+        {allCount > 0 && (
           <div className="orders-filter-tabs">
             {FILTER_TABS.map(({ key, label }) => {
-              const count = key ? orders.filter(o => o.status === key).length : orders.length
+              const count = key ? (counts[key] || 0) : allCount
               if (key && count === 0) return null
               const isActive = filterStatus === key
               const config = key ? STATUS_CONFIG[key] : null
@@ -387,6 +402,7 @@ export default function OrdersPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <AdminContactCard />
             {filtered.map((order, i) => {
               const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending
               return (
@@ -420,7 +436,7 @@ export default function OrdersPage() {
                         background: status.bg,
                         border: `1px solid ${status.border}`,
                         color: status.color
-                      }}>{status.label}</span>
+                      }}>{order.delivery_method === 'pickup' && { shipped: 'SIAP DIAMBIL', delivered: 'SUDAH DIAMBIL' }[order.status] || status.label}</span>
                       <ChevronRight size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                     </div>
                   </div>
@@ -447,6 +463,21 @@ export default function OrdersPage() {
                 </div>
               )
             })}
+
+            {page < totalPages && (
+              <button
+                onClick={() => fetchOrders(page + 1, filterStatus)}
+                disabled={loadingMore}
+                style={{
+                  marginTop: 6, padding: '13px', width: '100%',
+                  background: 'var(--bg-card)', border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)',
+                  fontWeight: 800, fontSize: '0.7rem', letterSpacing: '0.1em',
+                  cursor: loadingMore ? 'not-allowed' : 'pointer'
+                }}>
+                {loadingMore ? 'MEMUAT...' : 'MUAT LEBIH BANYAK'}
+              </button>
+            )}
           </div>
         )}
       </div>

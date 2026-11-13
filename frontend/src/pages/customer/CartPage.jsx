@@ -8,11 +8,11 @@ import toast from 'react-hot-toast'
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
 
-const API_URL = 'http://localhost:5000'
+import { API_URL } from '../../config/env'
 
 export default function CartPage() {
   const navigate = useNavigate()
-  const { setCartCount } = useCartStore()
+  const { setCartCount, decrementCart } = useCartStore()
   const [cart, setCart] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -32,15 +32,7 @@ export default function CartPage() {
 
   const handleUpdateQuantity = async (itemId, quantity) => {
     if (quantity <= 0) { handleRemove(itemId); return }
-    const cartItem = cart?.items?.find(i => i.cart_item_id === itemId)
-    if (cartItem?.product) {
-      const stockKey = `stock_${cartItem.size_ml}ml`
-      const availableStock = cartItem.product[stockKey] ?? 0
-      if (quantity > availableStock) {
-        toast.error(`Stok tidak mencukupi. Stok tersedia: ${availableStock} pcs`)
-        return
-      }
-    }
+    // Stok dicek server (sisa ml botol besar, termasuk item lain di keranjang); pesan errornya ditampilkan di bawah
     const prevCart = cart
     setCart(prev => ({
       ...prev,
@@ -56,7 +48,7 @@ export default function CartPage() {
 
   const handleRemove = async (itemId) => {
     setCart(prev => ({ ...prev, items: prev.items.filter(item => item.cart_item_id !== itemId) }))
-    setCartCount(prev => Math.max(0, prev - 1))
+    decrementCart()
     try {
       await api.delete(`/cart/${itemId}`)
       toast.success('Item dihapus')

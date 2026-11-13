@@ -3,6 +3,13 @@ const jwt = require('jsonwebtoken');
 const User = require('./user.model');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const { getConfig } = require('../../utils/systemConfig');
+
+// Token reset disimpan dalam bentuk hash; token mentah hanya ada di email
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const GENDER_PREF = ['Male', 'Female', 'Unisex'];
 
 // Register
 const register = async (req, res) => {
@@ -13,9 +20,17 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'Nama, email, dan password wajib diisi' });
     }
 
+    if (!EMAIL_REGEX.test(email)) {
+      return res.status(400).json({ message: 'Format email tidak valid' });
+    }
+
     // Validasi panjang password minimum 8 karakter
     if (password.length < 8) {
       return res.status(400).json({ message: 'Password minimal 8 karakter' });
+    }
+
+    if (pref_gender && !GENDER_PREF.includes(pref_gender)) {
+      return res.status(400).json({ message: 'Preferensi gender tidak valid' });
     }
 
     const existingUser = await User.findOne({ where: { email } });
@@ -86,6 +101,7 @@ const login = async (req, res) => {
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
@@ -141,23 +157,26 @@ const forgotPassword = async (req, res) => {
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 jam
 
     await user.update({
-      reset_token: resetToken,
+      reset_token: hashToken(resetToken),
       reset_token_expires: resetExpires
     });
 
     const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
 
+    // SMTP dari konfigurasi sysadmin (database), cadangan .env
+    const smtpUser = await getConfig('SMTP_USER');
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
+      host: (await getConfig('SMTP_HOST')) || 'smtp.gmail.com',
+      port: parseInt(await getConfig('SMTP_PORT')) || 587,
+      secure: false,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
+        user: smtpUser,
+        pass: await getConfig('SMTP_PASS')
       }
     });
 
     await transporter.sendMail({
-      from: `"Decant Temcy" <${process.env.SMTP_USER}>`,
+      from: `"Decant Temcy" <${smtpUser}>`,
       to: user.email,
       subject: 'Reset Password - Decant Temcy',
       html: `
@@ -205,7 +224,7 @@ const resetPassword = async (req, res) => {
     const { Op } = require('sequelize');
     const user = await User.findOne({
       where: {
-        reset_token: token,
+        reset_token: hashToken(String(token)),
         reset_token_expires: { [Op.gt]: new Date() }
       }
     });

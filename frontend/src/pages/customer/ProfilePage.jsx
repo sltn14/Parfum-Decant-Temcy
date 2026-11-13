@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { User, Lock, Save, Eye, EyeOff, Check, Camera } from 'lucide-react'
 import api from '../../api/axios'
+import { API_URL } from '../../config/env'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 
@@ -117,7 +118,7 @@ export default function ProfilePage() {
   const getAvatarSrc = () => {
     if (avatarPreview) return avatarPreview
     if (user?.avatar && user.avatar !== 'default-avatar.png') {
-      return `http://localhost:5000/uploads/avatars/${user.avatar}`
+      return `${API_URL}/uploads/avatars/${user.avatar}`
     }
     return null
   }

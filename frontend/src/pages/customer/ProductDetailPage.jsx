@@ -9,12 +9,13 @@ import toast from 'react-hot-toast'
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
 
-const API_URL = 'http://localhost:5000'
+import { API_URL } from '../../config/env'
+import ConfirmModal from '../../components/common/ConfirmModal'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user } = useAuthStore()
   const { incrementCart } = useCartStore()
 
   const [product, setProduct] = useState(null)
@@ -31,13 +32,22 @@ export default function ProductDetailPage() {
   const [favoriteLoading, setFavoriteLoading] = useState(false)
   const [canReview, setCanReview] = useState(false)
   const [hasReviewed, setHasReviewed] = useState(false)
+  // Edit/hapus ulasan milik sendiri
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState({ rating: 5, comment: '' })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deletingReview, setDeletingReview] = useState(false)
 
+  // Stok = sisa ml botol besar (stock_ml). Ukuran X ml bisa dibeli kalau sisa >= X ml.
   const sizes = [
-    { ml: 1, key: 'price_1ml', stockKey: 'stock_1ml' },
-    { ml: 2, key: 'price_2ml', stockKey: 'stock_2ml' },
-    { ml: 3, key: 'price_3ml', stockKey: 'stock_3ml' },
-    { ml: 5, key: 'price_5ml', stockKey: 'stock_5ml' }
+    { ml: 1, key: 'price_1ml' },
+    { ml: 2, key: 'price_2ml' },
+    { ml: 3, key: 'price_3ml' },
+    { ml: 5, key: 'price_5ml' },
+    { ml: 10, key: 'price_10ml' }
   ]
+  const maxQtyFor = (ml) => Math.floor((Number(product?.stock_ml) || 0) / ml)
 
   useEffect(() => { fetchAll() }, [id])
 
@@ -143,6 +153,50 @@ export default function ProductDetailPage() {
     }
   }
 
+  const reloadReviews = async () => {
+    const res = await api.get(`/reviews/product/${id}`)
+    setReviews(res.data.reviews || [])
+  }
+
+  const startEdit = (review) => {
+    setEditingId(review.review_id)
+    setEditForm({ rating: review.rating, comment: review.comment || '' })
+  }
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault()
+    setSavingEdit(true)
+    try {
+      await api.put(`/reviews/${editingId}`, editForm)
+      toast.success('Ulasan diperbarui!')
+      setEditingId(null)
+      await reloadReviews()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal memperbarui ulasan')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleDeleteReview = async () => {
+    if (!deleteTarget) return
+    setDeletingReview(true)
+    try {
+      await api.delete(`/reviews/${deleteTarget.review_id}`)
+      toast.success('Ulasan dihapus')
+      setDeleteTarget(null)
+      setEditingId(null)
+      // Setelah dihapus, pembeli boleh menulis ulasan baru
+      setHasReviewed(false)
+      setCanReview(true)
+      await reloadReviews()
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal menghapus ulasan')
+    } finally {
+      setDeletingReview(false)
+    }
+  }
+
   if (loading) return (
     <div style={{
       paddingTop: 'var(--navbar-height)', minHeight: '100vh',
@@ -181,8 +235,8 @@ export default function ProductDetailPage() {
           .pd-outer-pad { padding: 20px 16px !important; }
           .pd-main-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
           .pd-product-img-wrap { height: 260px !important; margin-bottom: 12px !important; }
-          .pd-product-h1 { font-size: 1.3rem !important; line-height: 1.1 !important; margin-bottom: 10px !important; }
-          .pd-product-price { font-size: 1.4rem !important; }
+          .pd-product-h1 { font-size: 2.1rem !important; line-height: 1.05 !important; margin-bottom: 10px !important; }
+          .pd-product-price { font-size: 2rem !important; }
           .pd-size-btn { padding: 8px 10px !important; font-size: 0.65rem !important; }
           .pd-size-row { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)) !important; gap: 6px !important; flex-wrap: unset !important; overflow-x: unset !important; }
           .pd-desc { font-size: 0.82rem !important; margin-bottom: 20px !important; }
@@ -285,7 +339,7 @@ export default function ProductDetailPage() {
                 border: '1px solid var(--border-default)',
                 borderRadius: 'var(--radius-xs)',
                 padding: '5px 12px',
-                fontSize: '0.62rem', fontWeight: 800,
+                fontSize: '0.72rem', fontWeight: 700,
                 letterSpacing: '0.12em', textTransform: 'uppercase',
                 color: 'var(--accent-red)'
               }}>{product.brand}</div>
@@ -310,7 +364,7 @@ export default function ProductDetailPage() {
                   borderRadius: 'var(--radius-xs)',
                   fontSize: '0.72rem', color: 'var(--accent-red)',
                   fontWeight: 800, letterSpacing: '0.04em'
-                }}>⭐ {avgRating} ({reviews.length})</span>
+                }}>★ {avgRating} ({reviews.length})</span>
               )}
             </div>
           </div>
@@ -321,21 +375,23 @@ export default function ProductDetailPage() {
             transition: 'transform 0.7s cubic-bezier(0.4,0,0.2,1) 0.2s'
           }}>
             <div style={{
-              fontSize: '0.65rem', fontWeight: 800,
-              letterSpacing: '0.22em', textTransform: 'uppercase',
-              color: 'var(--accent-red)', marginBottom: 10
+              fontSize: '0.78rem', fontWeight: 700,
+              letterSpacing: '0.2em', textTransform: 'uppercase',
+              color: 'var(--accent-red)', marginBottom: 12
             }}>{product.brand}</div>
 
             <h1 className="pd-product-h1" style={{
-              fontSize: 'clamp(1.6rem, 3vw, 2.2rem)',
-              fontWeight: 900, letterSpacing: '-0.03em',
-              textTransform: 'uppercase', lineHeight: 1.1, marginBottom: 14
+              fontFamily: 'var(--font-serif)',
+              fontSize: 'clamp(2.3rem, 4.4vw, 3.4rem)',
+              fontWeight: 700, letterSpacing: '-0.03em',
+              lineHeight: 1.05, marginBottom: 16
             }}>{product.product_name}</h1>
 
             {product.inspirator && (
               <p style={{
-                fontSize: '0.78rem', color: 'var(--text-muted)',
-                marginBottom: 18, fontWeight: 500
+                fontFamily: 'var(--font-serif)', 
+                fontSize: '1.1rem', color: 'var(--text-muted)',
+                marginBottom: 22, fontWeight: 500
               }}>
                 Inspirasi: <span style={{ color: 'var(--text-secondary)' }}>{product.inspirator}</span>
               </p>
@@ -343,24 +399,24 @@ export default function ProductDetailPage() {
 
             {product.description && (
               <p style={{
-                color: 'var(--text-secondary)', lineHeight: 1.9,
-                marginBottom: 28, fontSize: '0.88rem', fontWeight: 400,
-                borderLeft: '2px solid rgba(240,46,41,0.3)',
-                paddingLeft: 16
+                color: 'var(--text-secondary)', lineHeight: 1.85,
+                marginBottom: 32, fontSize: '0.98rem', fontWeight: 400,
+                maxWidth: '58ch',
+                paddingBottom: 28, borderBottom: '1px solid var(--border-default)'
               }}>{product.description}</p>
             )}
 
             {/* Size Selector */}
             <div style={{ marginBottom: 24 }}>
               <div style={{
-                fontSize: '0.62rem', fontWeight: 800,
+                fontSize: '0.72rem', fontWeight: 700,
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 12
               }}>PILIH UKURAN</div>
               <div className="pd-size-row" style={{ display: 'flex', gap: 8, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
-                {sizes.map(({ ml, key, stockKey }) => {
+                {sizes.map(({ ml, key }) => {
                   if (!product[key]) return null
-                  const stock = product[stockKey] ?? 0
+                  const stock = maxQtyFor(ml)
                   const isHabis = stock === 0
                   const isSelected = selectedSize === ml
                   return (
@@ -400,7 +456,7 @@ export default function ProductDetailPage() {
                               ? '#f59e0b'
                               : 'var(--text-muted)'
                       }}>
-                        {isHabis ? 'HABIS' : `Stok: ${stock}`}
+                        {isHabis ? 'HABIS' : `Maks. ${stock} pcs`}
                       </div>
                     </button>
                   )
@@ -411,12 +467,13 @@ export default function ProductDetailPage() {
             {/* Price */}
             <div style={{ marginBottom: 24 }}>
               <div style={{
-                fontSize: '0.62rem', fontWeight: 800,
+                fontSize: '0.72rem', fontWeight: 700,
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 6
               }}>HARGA</div>
               <div className="pd-product-price" style={{
-                fontSize: '2rem', fontWeight: 900,
+                fontFamily: 'var(--font-serif)',
+                fontSize: '2.6rem', fontWeight: 700, lineHeight: 1.1,
                 letterSpacing: '-0.03em', color: 'var(--accent-red)'
               }}>{formatRupiah(currentPrice)}</div>
             </div>
@@ -424,7 +481,7 @@ export default function ProductDetailPage() {
             {/* Quantity */}
             <div style={{ marginBottom: 28 }}>
               <div style={{
-                fontSize: '0.62rem', fontWeight: 800,
+                fontSize: '0.72rem', fontWeight: 700,
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--text-muted)', marginBottom: 12
               }}>JUMLAH</div>
@@ -448,8 +505,7 @@ export default function ProductDetailPage() {
                 }}>{quantity}</div>
                 <button
                   onClick={() => {
-                    const selectedStockKey = sizes.find(s => s.ml === selectedSize)?.stockKey
-                    const availableStock = selectedStockKey ? (product[selectedStockKey] ?? 0) : 0
+                    const availableStock = maxQtyFor(selectedSize)
                     if (quantity < availableStock) setQuantity(q => q + 1)
                     else toast.error(`Stok tidak mencukupi. Stok tersedia: ${availableStock} pcs`)
                   }}
@@ -549,16 +605,16 @@ export default function ProductDetailPage() {
                 borderRadius: 'var(--radius-lg)', padding: 28
               }}>
                 <div style={{
-                  fontSize: '0.62rem', fontWeight: 800,
+                  fontSize: '0.72rem', fontWeight: 700,
                   letterSpacing: '0.2em', textTransform: 'uppercase',
                   color: 'var(--accent-red)', marginBottom: 20
                 }}>PIRAMIDA WANGI</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {[
-                    { label: 'TOP NOTES', notes: product.top_notes, icon: '🍃' },
-                    { label: 'MIDDLE NOTES', notes: product.middle_notes, icon: '🌸' },
-                    { label: 'BASE NOTES', notes: product.base_notes, icon: '🪵' }
-                  ].filter(n => n.notes).map(({ label, notes, icon }) => (
+                    { label: 'TOP NOTES', notes: product.top_notes },
+                    { label: 'MIDDLE NOTES', notes: product.middle_notes },
+                    { label: 'BASE NOTES', notes: product.base_notes }
+                  ].filter(n => n.notes).map(({ label, notes }) => (
                     <div key={label} style={{
                       padding: '12px 14px',
                       background: 'var(--bg-elevated)',
@@ -566,16 +622,16 @@ export default function ProductDetailPage() {
                       border: '1px solid var(--border-default)'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                        <span style={{ fontSize: '0.85rem' }}>{icon}</span>
                         <span style={{
-                          fontSize: '0.58rem', fontWeight: 800,
+                          fontSize: '0.68rem', fontWeight: 700,
                           letterSpacing: '0.15em', textTransform: 'uppercase',
                           color: 'var(--accent-red)'
                         }}>{label}</span>
                       </div>
                       <p style={{
-                        fontSize: '0.82rem', color: 'var(--text-secondary)',
-                        lineHeight: 1.6, fontWeight: 400
+                        fontFamily: 'var(--font-serif)',
+                        fontSize: '1.15rem', color: 'var(--text-primary)',
+                        lineHeight: 1.5, fontWeight: 700
                       }}>{notes}</p>
                     </div>
                   ))}
@@ -584,7 +640,7 @@ export default function ProductDetailPage() {
                 {product.main_accords && (
                   <div style={{ marginTop: 16 }}>
                     <div style={{
-                      fontSize: '0.58rem', fontWeight: 800,
+                      fontSize: '0.68rem', fontWeight: 700,
                       letterSpacing: '0.15em', textTransform: 'uppercase',
                       color: 'var(--text-muted)', marginBottom: 10
                     }}>MAIN ACCORDS</div>
@@ -595,7 +651,7 @@ export default function ProductDetailPage() {
                           background: 'rgba(240,46,41,0.08)',
                           border: '1px solid rgba(240,46,41,0.15)',
                           borderRadius: 'var(--radius-xs)',
-                          fontSize: '0.72rem', fontWeight: 700,
+                          fontSize: '0.8rem', fontWeight: 600,
                           color: 'var(--accent-red)'
                         }}>{accord.trim()}</span>
                       ))}
@@ -615,11 +671,11 @@ export default function ProductDetailPage() {
                     borderRadius: 'var(--radius-lg)'
                   }}>
                     <div style={{
-                      fontSize: '0.62rem', fontWeight: 800,
+                      fontSize: '0.72rem', fontWeight: 700,
                       letterSpacing: '0.15em', textTransform: 'uppercase',
                       color: '#22c55e', marginBottom: 10
                     }}>KELEBIHAN</div>
-                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '0.85rem', fontWeight: 400 }}>
+                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '0.95rem', fontWeight: 400 }}>
                       {product.pros}
                     </p>
                   </div>
@@ -632,11 +688,11 @@ export default function ProductDetailPage() {
                     borderRadius: 'var(--radius-lg)'
                   }}>
                     <div style={{
-                      fontSize: '0.62rem', fontWeight: 800,
+                      fontSize: '0.72rem', fontWeight: 700,
                       letterSpacing: '0.15em', textTransform: 'uppercase',
                       color: '#ef4444', marginBottom: 10
                     }}>KEKURANGAN</div>
-                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '0.85rem', fontWeight: 400 }}>
+                    <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '0.95rem', fontWeight: 400 }}>
                       {product.cons}
                     </p>
                   </div>
@@ -658,19 +714,21 @@ export default function ProductDetailPage() {
           }}>
             <div>
               <div style={{
-                fontSize: '0.62rem', fontWeight: 800,
+                fontSize: '0.72rem', fontWeight: 700,
                 letterSpacing: '0.2em', textTransform: 'uppercase',
                 color: 'var(--accent-red)', marginBottom: 8
               }}>ULASAN PELANGGAN</div>
               <h2 style={{
-                fontSize: '1.4rem', fontWeight: 900,
-                letterSpacing: '-0.02em', textTransform: 'uppercase'
+                fontFamily: 'var(--font-serif)',
+                fontSize: '1.9rem', fontWeight: 700,
+                letterSpacing: '-0.03em'
               }}>{reviews.length} ULASAN</h2>
             </div>
             {avgRating && (
               <div style={{ textAlign: 'right' }}>
                 <div style={{
-                  fontSize: '2.8rem', fontWeight: 900,
+                  fontFamily: 'var(--font-serif)',
+                  fontSize: '3.2rem', fontWeight: 700,
                   color: 'var(--accent-red)', letterSpacing: '-0.04em', lineHeight: 1
                 }}>{avgRating}</div>
                 <div style={{
@@ -711,7 +769,7 @@ export default function ProductDetailPage() {
                 borderRadius: 'var(--radius-md)', padding: 22, marginBottom: 28
               }}>
                 <div style={{
-                  fontSize: '0.62rem', fontWeight: 800,
+                  fontSize: '0.72rem', fontWeight: 700,
                   letterSpacing: '0.15em', textTransform: 'uppercase',
                   color: 'var(--text-muted)', marginBottom: 14
                 }}>TULIS ULASAN</div>
@@ -853,14 +911,73 @@ export default function ProductDetailPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
                       {[1, 2, 3, 4, 5].map(s => (
-                        <span key={s} style={{ fontSize: '0.82rem', opacity: s <= review.rating ? 1 : 0.15 }}>⭐</span>
+                        <span key={s} style={{ fontSize: '0.82rem', opacity: s <= (editingId === review.review_id ? editForm.rating : review.rating) ? 1 : 0.15 }}>⭐</span>
                       ))}
                     </div>
                   </div>
-                  {review.comment && (
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.7, fontWeight: 400 }}>
-                      {review.comment}
-                    </p>
+                  {editingId === review.review_id ? (
+                    <form onSubmit={handleSaveEdit}>
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'center' }}>
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <button key={star} type="button"
+                            onClick={() => setEditForm(prev => ({ ...prev, rating: star }))}
+                            aria-label={`Rating ${star}`}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.3rem', padding: 0,
+                              opacity: star <= editForm.rating ? 1 : 0.25,
+                              transform: star <= editForm.rating ? 'scale(1.1)' : 'scale(1)',
+                              transition: 'all 0.15s ease'
+                            }}>⭐</button>
+                        ))}
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{editForm.rating}/5</span>
+                      </div>
+                      <textarea value={editForm.comment} maxLength={1000} rows={3}
+                        onChange={e => setEditForm(prev => ({ ...prev, comment: e.target.value }))}
+                        placeholder="Ceritakan pengalamanmu..."
+                        style={{
+                          width: '100%', padding: '10px 12px', resize: 'vertical',
+                          background: 'var(--bg-input)', border: '1px solid var(--border-default)',
+                          borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)',
+                          fontSize: '0.85rem', fontFamily: 'var(--font-sans)', outline: 'none'
+                        }} />
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
+                        <button type="button" onClick={() => setEditingId(null)}
+                          style={{
+                            padding: '7px 16px', cursor: 'pointer', borderRadius: 'var(--radius-xs)',
+                            background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
+                            color: 'var(--text-secondary)', fontSize: '0.72rem', fontWeight: 800
+                          }}>BATAL</button>
+                        <button type="submit" disabled={savingEdit}
+                          style={{
+                            padding: '7px 16px', cursor: savingEdit ? 'not-allowed' : 'pointer',
+                            borderRadius: 'var(--radius-xs)', border: 'none',
+                            background: 'var(--accent-red)', color: 'white',
+                            fontSize: '0.72rem', fontWeight: 800, opacity: savingEdit ? 0.6 : 1
+                          }}>{savingEdit ? 'MENYIMPAN...' : 'SIMPAN'}</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      {review.comment && (
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.7, fontWeight: 400 }}>
+                          {review.comment}
+                        </p>
+                      )}
+                      {isAuthenticated && user?.user_id === review.user_id && (
+                        <div style={{ display: 'flex', gap: 14, marginTop: 10 }}>
+                          <button type="button" onClick={() => startEdit(review)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                              color: 'var(--text-secondary)', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em' }}>
+                            Edit
+                          </button>
+                          <button type="button" onClick={() => setDeleteTarget(review)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                              color: 'var(--accent-red)', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.04em' }}>
+                            Hapus
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ))}
@@ -872,7 +989,7 @@ export default function ProductDetailPage() {
         {similar.length > 0 && (
           <div>
             <div style={{
-              fontSize: '0.62rem', fontWeight: 800,
+              fontSize: '0.72rem', fontWeight: 700,
               letterSpacing: '0.2em', textTransform: 'uppercase',
               color: 'var(--accent-red)', marginBottom: 10
             }}>MUNGKIN KAMU SUKA</div>
@@ -924,7 +1041,7 @@ export default function ProductDetailPage() {
                   </div>
                   <div className="pd-rel-body" style={{ padding: '12px 14px' }}>
                     <div className="pd-rel-brand" style={{
-                      fontSize: '0.58rem', fontWeight: 800,
+                      fontSize: '0.68rem', fontWeight: 700,
                       letterSpacing: '0.12em', textTransform: 'uppercase',
                       color: 'var(--accent-red)', marginBottom: 4
                     }}>{p.brand}</div>
@@ -943,6 +1060,15 @@ export default function ProductDetailPage() {
           </div>
         )}
       </div>
+      <ConfirmModal
+        show={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteReview}
+        title="Hapus ulasan?"
+        message="Ulasanmu akan dihapus dari halaman produk. Kamu bisa menulis ulasan baru setelahnya."
+        confirmLabel="YA, HAPUS"
+        loading={deletingReview}
+      />
     </div>
   )
 }

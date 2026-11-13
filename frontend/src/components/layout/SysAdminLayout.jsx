@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast'
 import { LayoutDashboard, Users, Settings, Activity, LogOut, Shield, Menu, X } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import api from '../../api/axios'
+import ThemeToggle from '../common/ThemeToggle'
 
 const navLinks = [
   { to: '/sysadmin', icon: <LayoutDashboard size={16} />, label: 'DASHBOARD', exact: true },
@@ -100,6 +101,9 @@ export default function SysAdminLayout() {
               SYSADMIN
             </div>
           </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+          <ThemeToggle size={34} />
         </div>
         <button onClick={handleLogout}
           style={{

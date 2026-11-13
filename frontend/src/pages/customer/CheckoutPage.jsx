@@ -4,11 +4,10 @@ import { ArrowLeft, ShoppingBag, Plus, X, Truck, Store } from 'lucide-react'
 import api from '../../api/axios'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
+import { API_URL } from '../../config/env'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
-
-const COURIERS = ['jne', 'jnt', 'sicepat', 'cod']
 
 export default function CheckoutPage() {
   const navigate = useNavigate()
@@ -26,10 +25,19 @@ export default function CheckoutPage() {
     shipping_address: '', shipping_city: '', shipping_notes: ''
   })
   const [courier, setCourier] = useState('')
+  const [couriers, setCouriers] = useState([])
+  const [couriersLoading, setCouriersLoading] = useState(true)
   const [courierServices, setCourierServices] = useState([])
   const [selectedService, setSelectedService] = useState(null)
 
   // Store pickup (cabang)
+  useEffect(() => {
+    api.get('/couriers')
+      .then(res => setCouriers(res.data.couriers || []))
+      .catch(() => toast.error('Gagal memuat daftar kurir'))
+      .finally(() => setCouriersLoading(false))
+  }, [])
+
   const [stores, setStores] = useState([])
   const [selectedStoreId, setSelectedStoreId] = useState(null)
   const [storesLoading, setStoresLoading] = useState(false)
@@ -178,11 +186,16 @@ export default function CheckoutPage() {
       if (deliveryMethod === 'delivery') {
         if (!useManual && selectedAddressId) {
           payload.address_id = selectedAddressId
-          if (selectedService) {
-            payload.courier = courier
-            payload.courier_service = selectedService.service
-            payload.shipping_cost = selectedService.cost[0].value
+          if (!selectedService) {
+            toast.error(useManual
+              ? 'Pilih kurir COD, atau gunakan alamat tersimpan untuk JNE/J&T/SiCepat'
+              : 'Pilih kurir dan layanan pengiriman terlebih dahulu')
+            setSubmitting(false)
+            return
           }
+          payload.courier = courier
+          payload.courier_service = selectedService.service
+          payload.shipping_cost = selectedService.cost[0].value
         } else if (useManual) {
           if (!manualAddress.shipping_name || !manualAddress.shipping_phone ||
             !manualAddress.shipping_address || !manualAddress.shipping_city) {
@@ -195,11 +208,16 @@ export default function CheckoutPage() {
           payload.shipping_address = manualAddress.shipping_address
           payload.shipping_city = manualAddress.shipping_city
           payload.shipping_notes = manualAddress.shipping_notes || ''
-          if (selectedService) {
-            payload.courier = courier
-            payload.courier_service = selectedService.service
-            payload.shipping_cost = selectedService.cost[0].value
+          if (!selectedService) {
+            toast.error(useManual
+              ? 'Pilih kurir COD, atau gunakan alamat tersimpan untuk JNE/J&T/SiCepat'
+              : 'Pilih kurir dan layanan pengiriman terlebih dahulu')
+            setSubmitting(false)
+            return
           }
+          payload.courier = courier
+          payload.courier_service = selectedService.service
+          payload.shipping_cost = selectedService.cost[0].value
         } else {
           toast.error('Pilih alamat pengiriman terlebih dahulu')
           setSubmitting(false)
@@ -787,17 +805,23 @@ export default function CheckoutPage() {
                   <div className="checkout-section-title">PILIH KURIR</div>
 
                   <div className="checkout-courier-row">
-                    {COURIERS.map(c => (
+                    {couriers.map(({ code: c, name }) => (
                       <button key={c} type="button" className="checkout-courier-btn" onClick={() => handleCourierChange(c)}
                         style={{
                           background: courier === c ? 'rgba(240,46,41,0.08)' : 'var(--bg-elevated)',
                           border: `1px solid ${courier === c ? 'var(--accent-red)' : 'var(--border-default)'}`,
                           color: courier === c ? 'var(--accent-red)' : 'var(--text-secondary)',
                         }}>
-                        {c === 'cod' ? 'COD' : c.toUpperCase()}
+                        {c === 'cod' ? 'COD' : (name || c).toUpperCase()}
                       </button>
                     ))}
                   </div>
+
+                  {!couriersLoading && couriers.length === 0 && (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '8px 0' }}>
+                      Belum ada kurir yang tersedia saat ini. Silakan pilih metode Pickup di toko.
+                    </div>
+                  )}
 
                   {loadingCost && (
                     <div style={{ textAlign: 'center', padding: '16px 0', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
@@ -992,7 +1016,7 @@ export default function CheckoutPage() {
                       }}>
                         {item.product?.image_filename && item.product.image_filename !== 'default.png' ? (
                           <img
-                            src={`http://localhost:5000/uploads/products/${item.product.image_filename}`}
+                            src={`${API_URL}/uploads/products/${item.product.image_filename}`}
                             alt={item.product?.product_name}
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />

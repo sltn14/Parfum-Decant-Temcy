@@ -1,41 +1,42 @@
 import { useState, useEffect, useRef } from 'react'
-import { Bell } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Bell, ChevronRight, CheckCheck } from 'lucide-react'
 import { io } from 'socket.io-client'
 import api from '../../api/axios'
+import { API_URL } from '../../config/env'
 import useAuthStore from '../../store/authStore'
 
-export default function NotificationBell() {
+export default function NotificationBell({ mobile = false }) {
   const { isAuthenticated, user } = useAuthStore()
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef(null)
+  const navigate = useNavigate()
   const openRef = useRef(false)
-  const socketRef = useRef(null)
 
   useEffect(() => {
     openRef.current = open
   }, [open])
 
-  // Setup Socket.io
+  // Setup Socket.io. Server memverifikasi token JWT saat handshake dan
+  // otomatis memasukkan klien ke room miliknya (klien tidak mengirim user_id).
   useEffect(() => {
     if (!isAuthenticated || !user?.user_id) return
 
-    const socket = io('http://localhost:5000', { withCredentials: true })
-    socketRef.current = socket
-
-    socket.on('connect', () => {
-      socket.emit('join', user.user_id)
+    const socket = io(API_URL, {
+      withCredentials: true,
+      auth: { token: useAuthStore.getState().token }
     })
 
+    // Notifikasi baru selalu masuk sebagai belum dibaca; pengguna yang menandainya sendiri
     socket.on('notification', (notif) => {
-      setNotifications(prev => [notif, ...prev])
+      setNotifications(prev => [{ ...notif, is_read: false }, ...prev])
       setUnreadCount(prev => prev + 1)
     })
 
     return () => {
       socket.disconnect()
-      socketRef.current = null
     }
   }, [isAuthenticated, user?.user_id])
 
@@ -72,8 +73,25 @@ export default function NotificationBell() {
   const handleOpen = () => {
     const next = !open
     setOpen(next)
-    if (next && unreadCount > 0) handleMarkAllRead()
+    if (next) fetchNotifications() // segarkan daftar; tidak otomatis ditandai dibaca
   }
+
+  // Klik notifikasi: tandai dibaca, tutup dropdown, buka halaman terkait
+  const handleNotifClick = async (notif) => {
+    if (!notif.is_read && notif.notification_id) {
+      setNotifications(prev => prev.map(n => n.notification_id === notif.notification_id ? { ...n, is_read: true } : n))
+      setUnreadCount(prev => Math.max(0, prev - 1))
+      api.put(`/notifications/${notif.notification_id}/read`).catch(() => {})
+    }
+    // Notifikasi lama tanpa link: pesanan -> daftar pesanan
+    const target = notif.link || (notif.type === 'order' ? '/orders' : null)
+    if (target) {
+      setOpen(false)
+      navigate(target)
+    }
+  }
+
+  const hasTarget = (n) => !!(n.link || n.type === 'order')
 
   const TYPE_CONFIG = {
     order: { icon: '📦', color: '#3b82f6' },
@@ -113,10 +131,11 @@ export default function NotificationBell() {
 
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 10px)', right: 0,
-          /* Fix: pakai min() supaya ga overflow di mobile */
-          width: 'min(340px, calc(100vw - 32px))',
-          background: 'rgba(13,13,20,0.98)',
+          ...(mobile
+            // Di bilah ikon mobile, lonceng tidak di tepi kanan: tempel ke lebar layar
+            ? { position: 'fixed', top: 64, left: 16, right: 16 }
+            : { position: 'absolute', top: 'calc(100% + 10px)', right: 0, width: 'min(340px, calc(100vw - 32px))' }),
+          background: 'var(--glass-panel)',
           backdropFilter: 'blur(24px)',
           border: '1px solid var(--border-default)',
           borderRadius: 'var(--radius-lg)',
@@ -140,9 +159,10 @@ export default function NotificationBell() {
                   fontSize: '0.68rem', color: 'var(--accent-red)',
                   cursor: 'pointer', fontWeight: 700,
                   background: 'none', border: 'none',
-                  letterSpacing: '0.04em'
+                  letterSpacing: '0.04em',
+                  display: 'flex', alignItems: 'center', gap: 4
                 }}>
-                Tandai semua dibaca
+                <CheckCheck size={13} /> Tandai semua dibaca
               </button>
             )}
           </div>
@@ -162,14 +182,19 @@ export default function NotificationBell() {
               notifications.map((notif, i) => {
                 const config = TYPE_CONFIG[notif.type] || TYPE_CONFIG.system
                 return (
-                  <div key={notif.notification_id || i} style={{
+                  <div key={notif.notification_id || i}
+                    role="button" tabIndex={0}
+                    onClick={() => handleNotifClick(notif)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleNotifClick(notif) }}
+                    style={{
+                    cursor: 'pointer',
                     padding: '14px 18px',
                     borderBottom: i < notifications.length - 1 ? '1px solid var(--border-default)' : 'none',
                     background: notif.is_read ? 'transparent' : 'rgba(240,46,41,0.04)',
                     display: 'flex', gap: 12, alignItems: 'flex-start',
                     transition: 'background 0.15s ease'
                   }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-tint)'}
                     onMouseLeave={e => {
                       e.currentTarget.style.background = notif.is_read ? 'transparent' : 'rgba(240,46,41,0.04)'
                     }}
@@ -200,12 +225,12 @@ export default function NotificationBell() {
                       </div>
                     </div>
 
-                    {!notif.is_read && (
-                      <div style={{
-                        width: 7, height: 7, borderRadius: '50%',
-                        background: 'var(--accent-red)', flexShrink: 0, marginTop: 5
-                      }} />
-                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0, marginTop: 5 }}>
+                      {!notif.is_read && (
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent-red)' }} />
+                      )}
+                      {hasTarget(notif) && <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
+                    </div>
                   </div>
                 )
               })

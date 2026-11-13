@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { Search, X, SlidersHorizontal, ChevronDown, Heart } from 'lucide-react'
+import { Search, X, ChevronDown, Heart } from 'lucide-react'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
 import useSearchStore from '../../store/searchStore'
 import useAuthStore from '../../store/authStore'
 
-const API_URL = 'http://localhost:5000'
+import { API_URL } from '../../config/env'
 
 const formatRupiah = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num)
@@ -255,9 +255,16 @@ export default function CatalogPage() {
 
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || query || '',
-    gender: '', concentration: '',
+    gender: '', concentration: '', main_accords: '',
     sort: searchParams.get('sort') || ''
   })
+  const [accords, setAccords] = useState([])
+
+  useEffect(() => {
+    api.get('/products/accords')
+      .then(res => setAccords(res.data.accords || []))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (query) {
@@ -276,6 +283,7 @@ export default function CatalogPage() {
       if (filters.search) params.set('search', filters.search)
       if (filters.gender) params.set('gender', filters.gender)
       if (filters.concentration) params.set('concentration', filters.concentration)
+      if (filters.main_accords) params.set('main_accords', filters.main_accords)
       if (filters.sort) params.set('sort', filters.sort)
       params.set('page', page)
       params.set('limit', 15)
@@ -293,12 +301,12 @@ export default function CatalogPage() {
   }
 
   const clearFilters = () => {
-    setFilters({ search: '', gender: '', concentration: '', sort: '' })
+    setFilters({ search: '', gender: '', concentration: '', main_accords: '', sort: '' })
     setPage(1)
   }
 
-  const hasFilters = filters.gender || filters.concentration || filters.sort || filters.search
-  const activeFilterCount = [filters.gender, filters.concentration, filters.sort].filter(Boolean).length
+  const hasFilters = filters.gender || filters.concentration || filters.main_accords || filters.sort || filters.search
+  const activeFilterCount = [filters.gender, filters.concentration, filters.main_accords, filters.sort].filter(Boolean).length
 
   return (
     <div style={{ paddingTop: 'var(--navbar-height)', minHeight: '100vh' }}>
@@ -460,6 +468,30 @@ export default function CatalogPage() {
             </button>
           )}
         </div>
+
+        {/* Chip filter aroma */}
+        {accords.length > 0 && (
+          <div className="catalog-accord-chips" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
+            {accords.map(a => {
+              const active = filters.main_accords.toLowerCase() === a.toLowerCase()
+              return (
+                <button key={a}
+                  onClick={() => handleFilterChange('main_accords', active ? '' : a)}
+                  style={{
+                    padding: '7px 14px', borderRadius: 'var(--radius-full)',
+                    fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                    background: active ? 'rgba(200,16,46,0.12)' : 'var(--bg-card)',
+                    border: `1px solid ${active ? 'rgba(200,16,46,0.4)' : 'var(--border-default)'}`,
+                    color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+                    transition: 'all 0.15s ease'
+                  }}>
+                  {a}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Grid */}
         {loading ? (

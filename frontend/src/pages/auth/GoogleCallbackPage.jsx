@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
+import { API_BASE } from '../../config/env'
 
 export default function GoogleCallbackPage() {
   const navigate = useNavigate()
@@ -23,7 +24,7 @@ export default function GoogleCallbackPage() {
         clearAuth()
 
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/me`,
+          `${API_BASE}/auth/me`,
           { headers: { Authorization: `Bearer ${token}` } }
         )
 
@@ -38,7 +39,7 @@ export default function GoogleCallbackPage() {
         toast.success(`Halo, ${user.full_name}!`)
 
         setTimeout(() => {
-          window.location.href = user.role === 'admin' ? '/admin' : '/'
+          window.location.href = user.role === 'admin' ? '/admin' : user.role === 'sysadmin' ? '/sysadmin' : '/'
         }, 300)
 
       } catch (err) {

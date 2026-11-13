@@ -1,16 +1,38 @@
 const Cart = require('./cart.model');
 const CartItem = require('./cart_item.model');
 const Product = require('../products/product.model');
+const { SIZES, maxQtyForSize, mlNeeded } = require('../../utils/stockMl');
+const { Op } = require('sequelize');
 
 const getPriceBySizeMl = (product, size_ml) => {
-  const priceMap = { 1: product.price_1ml, 2: product.price_2ml, 3: product.price_3ml, 5: product.price_5ml };
+  const priceMap = { 1: product.price_1ml, 2: product.price_2ml, 3: product.price_3ml, 5: product.price_5ml, 10: product.price_10ml };
   return priceMap[size_ml] || 0;
 };
 
-// Helper: ambil stok berdasarkan ukuran
-const getStockBySize = (product, size_ml) => {
-  const stockMap = { 1: product.stock_1ml, 2: product.stock_2ml, 3: product.stock_3ml, 5: product.stock_5ml };
-  return stockMap[size_ml] ?? 0;
+// Sisa pcs yang boleh dibeli untuk ukuran ini: sisa ml botol besar dikurangi ml yang sudah
+// dipakai item LAIN (ukuran lain / produk sama) di keranjang, dibagi ukuran.
+const getAvailableQty = async (product, cartId, size_ml, excludeItemId = null) => {
+  const where = { cart_id: cartId, product_id: product.product_id };
+  if (excludeItemId) where.cart_item_id = { [Op.ne]: excludeItemId };
+  const others = await CartItem.findAll({ where });
+  const remaining = (Number(product.stock_ml) || 0) - mlNeeded(others);
+  return maxQtyForSize(remaining, size_ml);
+};
+
+const stockMessage = (product, size_ml, available) =>
+  available <= 0
+    ? `Stok ${product.product_name} tidak cukup untuk ukuran ${size_ml}ml (sisa ${Number(product.stock_ml) || 0} ml)`
+    : `Jumlah melebihi stok. Untuk ukuran ${size_ml}ml masih bisa dibeli maksimal ${available} pcs`;
+
+// Item keranjang hanya boleh diakses pemilik keranjangnya. Item milik orang lain diperlakukan
+// sama seperti tidak ada (null -> 404), sehingga keberadaannya tidak bocor.
+const MAX_QTY_PER_ITEM = 99;
+const findOwnItem = async (userId, itemId) => {
+  const id = parseInt(itemId);
+  if (!Number.isInteger(id)) return null;
+  const cart = await Cart.findOne({ where: { user_id: userId } });
+  if (!cart) return null;
+  return CartItem.findOne({ where: { cart_item_id: id, cart_id: cart.cart_id } });
 };
 
 const getCart = async (req, res) => {
@@ -27,13 +49,24 @@ const getCart = async (req, res) => {
   }
 };
 
-// Add to cart — validasi stok per ukuran botol
+// Add to cart — validasi sisa ml botol besar
 const addToCart = async (req, res) => {
   try {
-    const { product_id, size_ml, quantity = 1 } = req.body;
+    let { product_id, size_ml, quantity = 1 } = req.body;
 
     if (!product_id || !size_ml) {
       return res.status(400).json({ message: 'product_id dan size_ml wajib diisi' });
+    }
+
+    // Normalisasi dan validasi: ukuran harus salah satu dari 1/2/3/5/10 ml, jumlah bilangan bulat >= 1
+    // (jumlah negatif/pecahan akan merusak subtotal dan stok)
+    size_ml = parseInt(size_ml);
+    quantity = Number(quantity);
+    if (!SIZES.includes(size_ml)) {
+      return res.status(400).json({ message: 'Ukuran tidak valid' });
+    }
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return res.status(400).json({ message: 'Jumlah harus bilangan bulat minimal 1' });
     }
 
     const product = await Product.findByPk(product_id);
@@ -43,12 +76,6 @@ const addToCart = async (req, res) => {
     const price = getPriceBySizeMl(product, size_ml);
     if (!price) return res.status(400).json({ message: 'Ukuran tidak tersedia' });
 
-    // Validasi stok per ukuran botol
-    const availableStock = getStockBySize(product, size_ml);
-    if (availableStock <= 0) {
-      return res.status(400).json({ message: `Stok botol ${size_ml}ml habis` });
-    }
-
     let cart = await Cart.findOne({ where: { user_id: req.user.user_id } });
     if (!cart) cart = await Cart.create({ user_id: req.user.user_id });
 
@@ -57,20 +84,16 @@ const addToCart = async (req, res) => {
       where: { cart_id: cart.cart_id, product_id, size_ml }
     });
 
+    // Validasi sisa ml botol besar (item ukuran yang sama dihitung ulang dengan qty barunya)
+    const availableQty = await getAvailableQty(product, cart.cart_id, size_ml, existingItem?.cart_item_id);
+    const newQty = (existingItem ? existingItem.quantity : 0) + quantity;
+    if (newQty > availableQty) {
+      return res.status(400).json({ message: stockMessage(product, size_ml, availableQty) });
+    }
+
     if (existingItem) {
-      const newQty = existingItem.quantity + quantity;
-      if (newQty > availableStock) {
-        return res.status(400).json({
-          message: `Jumlah melebihi stok. Stok botol ${size_ml}ml tersedia: ${availableStock} pcs`
-        });
-      }
       await existingItem.update({ quantity: newQty });
     } else {
-      if (quantity > availableStock) {
-        return res.status(400).json({
-          message: `Jumlah melebihi stok. Stok botol ${size_ml}ml tersedia: ${availableStock} pcs`
-        });
-      }
       await CartItem.create({ cart_id: cart.cart_id, product_id, size_ml, quantity, price });
     }
 
@@ -81,16 +104,22 @@ const addToCart = async (req, res) => {
   }
 };
 
-// Update quantity — validasi stok per ukuran botol
+// Update quantity — validasi sisa ml botol besar
 const updateCartItem = async (req, res) => {
   try {
-    const { quantity } = req.body;
+    let { quantity } = req.body;
+    quantity = Number(quantity);
+    if (!Number.isInteger(quantity)) {
+      return res.status(400).json({ message: 'Jumlah harus bilangan bulat' });
+    }
 
-    const item = await CartItem.findOne({
-      where: { cart_item_id: req.params.itemId }
-    });
+    const item = await findOwnItem(req.user.user_id, req.params.itemId);
 
     if (!item) return res.status(404).json({ message: 'Item tidak ditemukan' });
+
+    if (quantity > MAX_QTY_PER_ITEM) {
+      return res.status(400).json({ message: `Maksimal ${MAX_QTY_PER_ITEM} pcs per item` });
+    }
 
     if (quantity <= 0) {
       await item.destroy();
@@ -100,11 +129,9 @@ const updateCartItem = async (req, res) => {
     // Explicit query product — tidak pakai include agar tidak bergantung alias
     const product = await Product.findByPk(item.product_id);
     if (product) {
-      const availableStock = getStockBySize(product, item.size_ml);
-      if (quantity > availableStock) {
-        return res.status(400).json({
-          message: `Jumlah melebihi stok. Stok botol ${item.size_ml}ml tersedia: ${availableStock} pcs`
-        });
+      const availableQty = await getAvailableQty(product, item.cart_id, item.size_ml, item.cart_item_id);
+      if (quantity > availableQty) {
+        return res.status(400).json({ message: stockMessage(product, item.size_ml, availableQty) });
       }
     }
 
@@ -118,7 +145,7 @@ const updateCartItem = async (req, res) => {
 
 const removeCartItem = async (req, res) => {
   try {
-    const item = await CartItem.findByPk(req.params.itemId);
+    const item = await findOwnItem(req.user.user_id, req.params.itemId);
     if (!item) return res.status(404).json({ message: 'Item tidak ditemukan' });
     await item.destroy();
     return res.status(200).json({ message: 'Item berhasil dihapus' });

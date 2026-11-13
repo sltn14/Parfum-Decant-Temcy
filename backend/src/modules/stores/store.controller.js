@@ -1,4 +1,7 @@
 const Store = require('./store.model');
+const { audit, pickKeys, changes } = require('../../utils/audit');
+
+const STORE_FIELDS = ['name', 'city', 'address', 'phone', 'maps_url', 'is_active'];
 
 const pickFields = (body) => {
   const { name, city, address, phone, maps_url } = body;
@@ -43,6 +46,8 @@ const createStore = async (req, res) => {
       return res.status(400).json({ message: 'Nama, kota, dan alamat store wajib diisi' });
     }
     const store = await Store.create({ ...data, is_active: true });
+    await audit(req, { action: 'create', entity: 'store', entityId: store.store_id,
+      message: `Cabang ditambahkan: ${store.name}`, after: pickKeys(store, STORE_FIELDS) });
     return res.status(201).json({ message: 'Store berhasil ditambahkan', store });
   } catch (err) {
     console.error(err);
@@ -59,7 +64,10 @@ const updateStore = async (req, res) => {
     if (!data.name || !data.city || !data.address) {
       return res.status(400).json({ message: 'Nama, kota, dan alamat store wajib diisi' });
     }
+    const beforeSnap = pickKeys(store, STORE_FIELDS);
     await store.update(data);
+    await audit(req, { action: 'update', entity: 'store', entityId: store.store_id,
+      message: `Cabang diubah: ${store.name}`, ...changes(beforeSnap, pickKeys(store, STORE_FIELDS)) });
     return res.status(200).json({ message: 'Store berhasil diupdate', store });
   } catch (err) {
     console.error(err);
@@ -81,7 +89,11 @@ const toggleStore = async (req, res) => {
       }
     }
 
+    const wasActive = store.is_active;
     await store.update({ is_active: !store.is_active });
+    await audit(req, { action: 'toggle', entity: 'store', entityId: store.store_id,
+      message: `Cabang ${store.is_active ? 'diaktifkan' : 'dinonaktifkan'}: ${store.name}`,
+      before: { is_active: wasActive }, after: { is_active: store.is_active } });
     return res.status(200).json({
       message: `Store berhasil ${store.is_active ? 'diaktifkan' : 'dinonaktifkan'}`,
       store

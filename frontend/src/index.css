@@ -1,15 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 :root {
-  --bg-primary: #06060a;
-  --bg-secondary: #0d0d14;
-  --bg-card: #111118;
-  --bg-elevated: #16161f;
-  --bg-input: #13131a;
+  --bg-primary: #07070c;
+  --bg-secondary: rgba(255, 255, 255, 0.03);
+  --bg-card: rgba(30, 30, 44, 0.52);
+  --bg-elevated: rgba(255, 255, 255, 0.07);
+  --bg-input: rgba(255, 255, 255, 0.06);
 
-  --text-primary: #f0ede8;
-  --text-secondary: #9994a0;
-  --text-muted: #5a5565;
+  --text-primary: #f4f1ec;
+  --text-secondary: #a8a3b3;
+  --text-muted: #77718a;
 
   --accent-red: #F02E29;
   --accent-red-hover: #e11d18;
@@ -17,8 +17,8 @@
   --accent-dark-red: #A2120E;
   --accent-dark-red-2: #830E0B;
 
-  --border-default: #1e1e2e;
-  --border-hover: #2e2e42;
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-hover: rgba(255, 255, 255, 0.22);
   --border-focus: #F02E29;
 
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.5);
@@ -26,11 +26,27 @@
   --shadow-lg: 0 16px 64px rgba(0,0,0,0.7);
   --shadow-red: 0 8px 32px rgba(240,46,41,0.3);
 
+  --surface-tint: rgba(255, 255, 255, 0.03);
+  --surface-tint-strong: rgba(255, 255, 255, 0.05);
+  --glass: rgba(14, 14, 22, 0.55);
+  --glass-strong: rgba(12, 12, 20, 0.62);
+  --glass-panel: rgba(22, 22, 34, 0.80);
+  --glass-hi: rgba(255, 255, 255, 0.20);
+  --glass-spot: rgba(255, 255, 255, 0.13);
+  --glass-blur: blur(22px) saturate(170%);
+  --glass-blur-soft: blur(12px) saturate(150%);
+  --glass-edge: rgba(255, 255, 255, 0.05);
+  --glass-hover-shadow: 0 14px 44px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+  --mesh-1: rgba(240, 46, 41, 0.20);
+  --mesh-2: rgba(110, 80, 255, 0.16);
+  --mesh-3: rgba(255, 140, 60, 0.08);
+
   --navbar-height: 76px;
 
-  --font-sans: 'Montserrat', -apple-system, sans-serif;
-  --font-display: 'Montserrat', sans-serif;
-  --font-heading: 'Montserrat', sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  --font-serif: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  --font-heading: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
 
   --radius-xs: 4px;
   --radius-sm: 8px;
@@ -39,6 +55,47 @@
   --radius-xl: 24px;
   --radius-full: 9999px;
 }
+
+/* ===== LIGHT THEME ===== */
+:root[data-theme="light"] {
+  color-scheme: light;
+  /* Pearl + champagne: netral hangat, merah hanya untuk aksen */
+  --bg-primary: #f4f0ea;
+  --bg-secondary: rgba(255, 255, 255, 0.40);
+  --bg-card: rgba(255, 255, 255, 0.66);
+  --bg-elevated: rgba(255, 255, 255, 0.70);
+  --bg-input: rgba(255, 255, 255, 0.82);
+
+  --text-primary: #18151d;
+  --text-secondary: #4f4859;
+  --text-muted: #766f82;
+
+  --accent-red-light: rgba(240, 46, 41, 0.08);
+
+  --border-default: rgba(60, 45, 75, 0.10);
+  --border-hover: rgba(165, 125, 75, 0.45);
+
+  --shadow-sm: 0 2px 10px rgba(60, 45, 75, 0.08);
+  --shadow-md: 0 10px 36px rgba(60, 45, 75, 0.12);
+  --shadow-lg: 0 20px 64px rgba(60, 45, 75, 0.16);
+  --shadow-red: 0 10px 32px rgba(240, 46, 41, 0.20);
+
+  --surface-tint: rgba(60, 45, 75, 0.035);
+  --surface-tint-strong: rgba(60, 45, 75, 0.06);
+  --glass: rgba(255, 255, 255, 0.58);
+  --glass-strong: rgba(255, 255, 255, 0.66);
+  --glass-panel: rgba(255, 255, 255, 0.86);
+  --glass-hi: rgba(255, 255, 255, 1);
+  --glass-spot: rgba(255, 255, 255, 0.85);
+  --glass-blur: blur(24px) saturate(180%);
+  --glass-blur-soft: blur(12px) saturate(160%);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --glass-hover-shadow: 0 16px 48px rgba(60, 45, 75, 0.16), inset 0 1px 0 rgba(255, 255, 255, 1);
+  --mesh-1: rgba(243, 190, 182, 0.55);
+  --mesh-2: rgba(200, 192, 236, 0.45);
+  --mesh-3: rgba(238, 212, 168, 0.50);
+}
+:root[data-theme="dark"] { color-scheme: dark; }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -50,6 +107,7 @@ html {
 }
 
 body {
+  transition: background-color 0.25s ease, color 0.25s ease;
   font-family: var(--font-sans);
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -59,7 +117,7 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Montserrat', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 800;
   letter-spacing: -0.02em;
 }
@@ -78,7 +136,7 @@ ul, ol { list-style: none; }
 
 /* ===== TYPOGRAPHY UTILS ===== */
 .section-label {
-  font-family: 'Montserrat', sans-serif;
+  font-family: var(--font-heading);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.22em;
@@ -86,20 +144,20 @@ ul, ol { list-style: none; }
   color: var(--accent-red);
 }
 .heading-xl {
-  font-family: 'Montserrat', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 900;
   letter-spacing: -0.03em;
   text-transform: uppercase;
   line-height: 1.05;
 }
 .heading-lg {
-  font-family: 'Montserrat', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 800;
   letter-spacing: -0.02em;
   text-transform: uppercase;
 }
 .brand-text {
-  font-family: 'Montserrat', sans-serif;
+  font-family: var(--font-heading);
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -178,7 +236,7 @@ ul, ol { list-style: none; }
 .skeleton {
   background: linear-gradient(90deg,
     var(--bg-elevated) 25%,
-    rgba(255,255,255,0.04) 50%,
+    var(--surface-tint-strong) 50%,
     var(--bg-elevated) 75%
   );
   background-size: 200% 100%;
@@ -188,10 +246,10 @@ ul, ol { list-style: none; }
 
 /* ===== GLASS ===== */
 .glass {
-  background: rgba(255,255,255,0.02);
+  background: var(--surface-tint);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid var(--border-default);
 }
 
 /* ===== GRADIENT TEXT ===== */
@@ -240,3 +298,152 @@ ul, ol { list-style: none; }
   animation: marquee 20s linear infinite;
 }
 .marquee-track:hover { animation-play-state: paused; }
+
+/* =====================================================================
+   GLASS (efek kaca ala iOS) — berlaku untuk seluruh situs
+   Permukaan kaca ditandai lewat token warna pada inline style dan daftar kelas di bawah.
+   Daftar yang sama ada di src/utils/glassEffects.js (GLASS_SELECTOR). Ubah keduanya bersamaan.
+   ===================================================================== */
+body { background: var(--bg-primary); }
+
+/* Latar gradasi lembut di belakang semua halaman, supaya kaca punya sesuatu untuk dibiaskan */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(60vw 50vh at 12% 8%, var(--mesh-1), transparent 65%),
+    radial-gradient(55vw 55vh at 92% 18%, var(--mesh-2), transparent 65%),
+    radial-gradient(60vw 50vh at 70% 100%, var(--mesh-3), transparent 65%);
+}
+
+/* Pembungkus halaman yang dulu solid dibuat transparan agar latar terlihat */
+[style*="background: var(--bg-primary)"] { background: transparent !important; }
+[style*="background: var(--bg-secondary)"] { background: var(--bg-secondary) !important; }
+
+/* Kaca utama: kartu, panel, modal, tabel, ringkasan */
+[style*="--bg-card"],
+[style*="--glass-panel"],
+[style*="--glass-strong"],
+[style*="background: var(--glass)"],
+.kr-card,
+.kr-modal,
+.glass,
+.ap-modal,
+.ap-search-box,
+.ap-table-wrap,
+.cart-item-row,
+.cart-summary,
+.checkout-section-card,
+.checkout-summary-panel,
+.inv-table-wrap,
+.orders-card,
+.st-card,
+.st-modal,
+.cart-ctrl-qty {
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  outline: 1px solid var(--glass-edge);
+  outline-offset: -2px;
+}
+
+/* Kaca ringan: chip, input, tombol sekunder, kotak status berwarna */
+[style*="--bg-elevated"],
+[style*="--bg-input"],
+[style*="background: rgba(240, 46, 41"],
+[style*="background: rgba(34, 197, 94"],
+[style*="background: rgba(59, 130, 246"],
+[style*="background: rgba(245, 158, 11"],
+[style*="background: rgba(239, 68, 68"],
+[style*="background: rgba(139, 92, 246"],
+.ap-stock-section,
+.ap-th,
+.cart-item-img,
+.orders-product-chip,
+.cart-ctrl-btn,
+.cart-continue-link {
+  -webkit-backdrop-filter: var(--glass-blur-soft);
+  backdrop-filter: var(--glass-blur-soft);
+}
+
+/* Sorotan kaca: titik cahaya mengikuti kursor + tepi menyala saat dihover */
+[data-glass]::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 0%), var(--glass-spot), transparent 60%);
+  transition: opacity 0.25s ease;
+  z-index: 1;
+}
+[data-glass]:hover::after { opacity: 1; }
+[data-glass] {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, border-color 0.25s ease, background-color 0.25s ease;
+}
+[data-glass]:hover {
+  border-color: var(--border-hover) !important;
+  box-shadow: var(--glass-hover-shadow) !important;
+}
+/* Hanya elemen kecil yang terangkat sedikit; kartu besar dan tabel tetap diam */
+[data-glass-lift]:hover { transform: translateY(-3px); }
+
+/* Tombol: kilau halus saat dihover */
+button:not(:disabled), a[href] { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled):hover { filter: brightness(1.06) saturate(1.05); }
+
+/* Input: cincin lembut saat fokus */
+input:focus, textarea:focus, select:focus { box-shadow: 0 0 0 4px rgba(240, 46, 41, 0.14); }
+
+/* Logo: mode terang pakai warna asli (hitam + merah); mode gelap putih polos */
+:root[data-theme="light"] img[src="/logo.png"] { filter: none !important; }
+
+/* Tipografi: Inter dengan fitur yang lebih rapi */
+html { font-feature-settings: 'cv11', 'ss01'; font-optical-sizing: auto; }
+body { letter-spacing: -0.005em; }
+
+/* Aksesibilitas dan perangkat lemah */
+@media (hover: none) {
+  [data-glass]::after { display: none; }
+  [data-glass-lift]:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-glass], [data-glass]::after { transition: none; }
+  [data-glass-lift]:hover { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  [style*="--bg-card"],
+[style*="--glass-panel"],
+[style*="--glass-strong"],
+[style*="background: var(--glass)"],
+.kr-card,
+.kr-modal,
+.glass,
+.ap-modal,
+.ap-search-box,
+.ap-table-wrap,
+.cart-item-row,
+.cart-summary,
+.checkout-section-card,
+.checkout-summary-panel,
+.inv-table-wrap,
+.orders-card,
+.st-card,
+.st-modal,
+.cart-ctrl-qty,
+  [style*="--bg-elevated"],
+[style*="--bg-input"],
+[style*="background: rgba(240, 46, 41"],
+[style*="background: rgba(34, 197, 94"],
+[style*="background: rgba(59, 130, 246"],
+[style*="background: rgba(245, 158, 11"],
+[style*="background: rgba(239, 68, 68"],
+[style*="background: rgba(139, 92, 246"],
+.ap-stock-section,
+.ap-th,
+.cart-item-img,
+.orders-product-chip,
+.cart-ctrl-btn,
+.cart-continue-link { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --bg-card: rgba(26, 26, 38, 0.94); --glass-panel: rgba(22, 22, 34, 0.97); --glass-strong: rgba(12, 12, 20, 0.95); }
+  :root[data-theme="light"] { --bg-card: rgba(255, 255, 255, 0.96); --glass-panel: rgba(255, 255, 255, 0.98); --glass-strong: rgba(255, 255, 255, 0.96); }
+}

@@ -3,16 +3,18 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest --runInBand --forceExit",
     "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "dev": "nodemon src/app.js",
+    "seed:demo": "node scripts/seed_demo.js",
+    "bench": "node scripts/bench.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@google/genai": "^2.31.0",
+    "@google/genai": "^2.32.0",
     "axios": "^1.19.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -20,19 +22,34 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "midtrans-client": "^1.4.3",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^10.3.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.22.0",
     "sequelize": "^6.37.8",
-    "sequelize-cli": "^6.6.5",
-    "socket.io": "^4.8.3",
-    "xlsx": "^0.18.5"
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "autocannon": "^8.0.0",
+    "jest": "^30.0.0",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.1.0",
+    "xlsx": "^0.18.5"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFiles": [
+      "<rootDir>/tests/helpers/env.js",
+      "<rootDir>/tests/helpers/mocks.js"
+    ],
+    "globalSetup": "<rootDir>/tests/helpers/globalSetup.js",
+    "testMatch": [
+      "<rootDir>/tests/**/*.test.js"
+    ],
+    "testTimeout": 30000
   }
 }

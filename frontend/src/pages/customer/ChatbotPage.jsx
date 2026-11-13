@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Send, Bot, User, RotateCcw } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import api from '../../api/axios'
+import { API_URL } from '../../config/env'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
 
@@ -16,6 +18,71 @@ const SUGGESTIONS = [
 const INITIAL_MESSAGE = {
   role: 'assistant',
   content: 'Halo! Saya Mincy AI — konsultan parfum personal kamu.\n\nCeritakan selera wangi kamu, dan saya akan rekomendasikan parfum yang tepat!'
+}
+
+const MAX_CHARS = 1000 // sama dengan batas backend untuk customer
+
+const rupiah = (n) => `Rp${Number(n).toLocaleString('id-ID')}`
+
+// Kartu produk rekomendasi: seluruh kartu bisa diklik menuju halaman produk
+function ProductCard({ p }) {
+  const hasImage = p.image_filename && p.image_filename !== 'default.png'
+  const notes = [['Top', p.top_notes], ['Middle', p.middle_notes], ['Base', p.base_notes]].filter(([, v]) => v)
+  const hasMatch = Number.isFinite(p.match_percent)
+  return (
+    <Link to={`/product/${p.product_id}`} style={{
+      display: 'flex', gap: 12, padding: 12, textDecoration: 'none', color: 'inherit',
+      background: 'var(--bg-card)', border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius-md)'
+    }}>
+      <div style={{
+        width: 84, height: 84, flexShrink: 0, borderRadius: 'var(--radius-sm)', overflow: 'hidden',
+        background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}>
+        {hasImage
+          ? <img src={`${API_URL}/uploads/products/${p.image_filename}`} alt={p.product_name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <Bot size={24} style={{ color: 'var(--text-muted)' }} />}
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+          {p.brand}
+        </div>
+        <div style={{ fontSize: '0.9rem', fontWeight: 800, lineHeight: 1.3 }}>{p.product_name}</div>
+        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 6 }}>
+          {[p.concentration, p.gender, p.longevity_display && `Tahan ${p.longevity_display}`].filter(Boolean).join(' · ')}
+        </div>
+        {hasMatch && (
+          <div style={{ marginBottom: 6 }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent-red)' }}>Kemiripan {p.match_percent}%</div>
+            <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-elevated)', marginTop: 3 }}>
+              <div style={{ width: `${Math.max(0, Math.min(100, p.match_percent))}%`, height: '100%', borderRadius: 2, background: 'var(--accent-red)' }} />
+            </div>
+          </div>
+        )}
+        {p.main_accords && (
+          <div style={{ fontSize: '0.74rem', marginBottom: 4 }}><strong>Aroma:</strong> {p.main_accords}</div>
+        )}
+        {notes.map(([label, value]) => (
+          <div key={label} style={{ fontSize: '0.72rem', color: 'var(--text-secondary, var(--text-muted))' }}>
+            <strong>{label}:</strong> {value}
+          </div>
+        ))}
+        {p.characteristic && (
+          <div style={{
+            fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4,
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+          }}>{p.characteristic}</div>
+        )}
+        {p.price_1ml > 0 && (
+          <div style={{ fontSize: '0.76rem', fontWeight: 700, marginTop: 6 }}>
+            Mulai {rupiah(p.price_1ml)}/1ml
+            {p.price_5ml > 0 && <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> · 5ml {rupiah(p.price_5ml)}</span>}
+          </div>
+        )}
+      </div>
+    </Link>
+  )
 }
 
 export default function ChatbotPage() {
@@ -55,10 +122,13 @@ export default function ChatbotPage() {
       })
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: res.data.reply || 'Maaf, saya tidak bisa memproses permintaan kamu.'
+        content: res.data.reply || 'Maaf, saya tidak bisa memproses permintaan kamu.',
+        products: Array.isArray(res.data.products) ? res.data.products : []
       }])
     } catch (err) {
+      // 503 membawa `reply`; 400 (mis. pesan terlalu panjang) membawa `message`
       const errMsg = err?.response?.data?.reply
+        || err?.response?.data?.message
         || 'Maaf, Mincy AI sedang tidak tersedia. Silakan coba lagi nanti.'
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -108,7 +178,7 @@ export default function ChatbotPage() {
 
       {/* Header */}
       <div className="chat-header" style={{
-        background: 'rgba(6,6,10,0.92)',
+        background: 'var(--glass-strong)',
         backdropFilter: 'blur(20px)',
         borderBottom: '1px solid var(--border-default)',
         padding: '14px 32px',
@@ -206,9 +276,13 @@ export default function ChatbotPage() {
                 }
               </div>
 
-              {/* Bubble */}
+              {/* Bubble + kartu produk rekomendasi */}
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 10, maxWidth: '72%', minWidth: 0,
+                alignItems: msg.role === 'user' ? 'flex-end' : 'stretch'
+              }}>
               <div className="chat-bubble" style={{
-                maxWidth: '72%',
+                maxWidth: '100%',
                 padding: '12px 16px',
                 background: msg.role === 'user'
                   ? 'var(--accent-red)'
@@ -222,6 +296,12 @@ export default function ChatbotPage() {
                 fontWeight: 400, whiteSpace: 'pre-wrap'
               }}>
                 {msg.content}
+              </div>
+              {msg.products?.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {msg.products.map(p => <ProductCard key={p.product_id} p={p} />)}
+                </div>
+              )}
               </div>
             </div>
           ))}
@@ -308,7 +388,7 @@ export default function ChatbotPage() {
       <div className="chat-input-area" style={{
         borderTop: '1px solid var(--border-default)',
         padding: '14px 32px',
-        background: 'rgba(6,6,10,0.92)',
+        background: 'var(--glass-strong)',
         backdropFilter: 'blur(20px)'
       }}>
         <div style={{
@@ -332,6 +412,7 @@ export default function ChatbotPage() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
+              maxLength={MAX_CHARS}
               placeholder="Tanya tentang parfum..."
               rows={1}
               style={{
@@ -342,6 +423,14 @@ export default function ChatbotPage() {
                 fontWeight: 400
               }}
             />
+            {input.length >= MAX_CHARS * 0.8 && (
+              <span style={{
+                fontSize: '0.6rem', fontWeight: 700, flexShrink: 0,
+                color: input.length >= MAX_CHARS ? 'var(--accent-red)' : 'var(--text-muted)'
+              }}>
+                {input.length}/{MAX_CHARS}
+              </span>
+            )}
           </div>
 
           <button

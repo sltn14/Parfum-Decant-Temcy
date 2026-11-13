@@ -1,5 +1,13 @@
 const Address = require('./address.model');
 
+const ADDRESS_FIELDS = ['label', 'recipient_name', 'phone', 'province', 'province_id', 'city', 'city_id', 'district', 'postal_code', 'detail', 'is_default'];
+// user_id dan address_id tidak pernah diambil dari body
+const pickAddress = (body = {}) => {
+  const out = {};
+  for (const k of ADDRESS_FIELDS) if (body[k] !== undefined) out[k] = body[k];
+  return out;
+};
+
 const getAddresses = async (req, res) => {
   try {
     const addresses = await Address.findAll({
@@ -43,7 +51,7 @@ const updateAddress = async (req, res) => {
       await Address.update({ is_default: false }, { where: { user_id: req.user.user_id } });
     }
 
-    await address.update(req.body);
+    await address.update(pickAddress(req.body));
     return res.status(200).json({ message: 'Alamat berhasil diupdate', address });
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });

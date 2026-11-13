@@ -46,13 +46,28 @@ const updateProfile = async (req, res) => {
 
 const changePassword = async (req, res) => {
   try {
-    const { old_password, new_password } = req.body;
-    if (!old_password || !new_password) {
+    // current_password dipakai API baru; old_password tetap diterima karena frontend lama memakainya
+    const current_password = req.body.current_password ?? req.body.old_password;
+    const { new_password } = req.body;
+    if (typeof current_password !== 'string' || !current_password || typeof new_password !== 'string' || !new_password) {
       return res.status(400).json({ message: 'Password lama dan baru wajib diisi' });
     }
+    if (new_password.length < 8) {
+      return res.status(400).json({ message: 'Password baru minimal 8 karakter' });
+    }
+    if (new_password.length > 72) {
+      return res.status(400).json({ message: 'Password baru maksimal 72 karakter' });
+    }
     const user = await User.findByPk(req.user.user_id);
-    const isMatch = await bcrypt.compare(old_password, user.password);
+    if (!user) return res.status(404).json({ message: 'User tidak ditemukan' });
+    if (!user.password) {
+      return res.status(400).json({ message: 'Akun ini terdaftar via Google, gunakan fitur lupa password' });
+    }
+    const isMatch = await bcrypt.compare(current_password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Password lama salah' });
+    if (new_password === current_password) {
+      return res.status(400).json({ message: 'Password baru harus berbeda dari password lama' });
+    }
     const hashed = await bcrypt.hash(new_password, 10);
     await user.update({ password: hashed });
     return res.status(200).json({ message: 'Password berhasil diubah' });

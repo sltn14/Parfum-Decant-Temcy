@@ -1,42 +1,59 @@
 const Product = require('../modules/products/product.model');
 
-const SIZES = [1, 2, 3, 5];
+const SIZES = [1, 2, 3, 5, 10];
 
-// Hitung stock_ml (total ml dari semua vial) + naikkan stock_ml_initial kalau kurang.
-// `vials` = object berisi stock_1ml, stock_2ml, stock_3ml, stock_5ml.
-// Rumus: 1ml x jumlah + 2ml x jumlah + 3ml x jumlah + 5ml x jumlah
-const mlFields = (vials, currentInitial = 0) => {
-  const total = SIZES.reduce((sum, s) => sum + s * (parseInt(vials[`stock_${s}ml`]) || 0), 0);
+const toMl = (v) => Number(v) || 0;
+
+// Sumber kebenaran stok = products.stock_ml (sisa ml botol besar).
+// Kolom stock_1ml..stock_5ml adalah data lama dan TIDAK dipakai lagi untuk menentukan bisa dibeli atau tidak.
+
+// Berapa pcs ukuran `size` ml yang masih bisa dibeli dari sisa `stockMl`.
+const maxQtyForSize = (stockMl, size) => {
+  const s = parseInt(size);
+  if (!SIZES.includes(s)) return 0;
+  return Math.max(0, Math.floor(toMl(stockMl) / s));
+};
+
+// Total ml yang dibutuhkan sekumpulan item ({ size_ml, quantity }).
+const mlNeeded = (items = []) =>
+  items.reduce((sum, i) => sum + (parseInt(i.size_ml) || 0) * (parseInt(i.quantity) || 0), 0);
+
+// Set stok botol besar (ml) + naikkan stock_ml_initial kalau kurang.
+const mlFields = (stockMl, currentInitial = 0) => {
+  const total = Math.max(0, toMl(stockMl));
   const initial = parseFloat(currentInitial) || 0;
   return { stock_ml: total, stock_ml_initial: Math.max(initial, total) };
 };
 
-// Tambah/kurangi stok vial satu ukuran, lalu sinkronkan stock_ml & sold_count.
-// delta negatif = terjual, positif = dikembalikan (order batal).
-const adjustVials = async (product, size_ml, delta, soldDelta = 0) => {
+// Kurangi/kembalikan stok ml untuk `qtyDelta` pcs ukuran `size_ml`.
+// qtyDelta negatif = terjual, positif = dikembalikan (order batal).
+const adjustMl = async (product, size_ml, qtyDelta, soldDelta = 0, options = {}) => {
   const size = parseInt(size_ml);
   if (!SIZES.includes(size)) return;
 
-  const key = `stock_${size}ml`;
-  const next = Math.max(0, (parseInt(product[key]) || 0) + delta);
-  const vials = { ...product.get(), [key]: next };
-
+  const next = Math.max(0, toMl(product.stock_ml) + size * qtyDelta);
   await product.update({
-    [key]: next,
+    stock_ml: next,
     sold_count: Math.max(0, (product.sold_count || 0) + soldDelta),
-    ...mlFields(vials, product.stock_ml_initial)
-  });
+    stock_ml_initial: Math.max(toMl(product.stock_ml_initial), next)
+  }, options);
 };
 
-// Kembalikan stok vial saat order dibatalkan.
+// Kembalikan stok ml saat order dibatalkan.
 // `items` = order.items (OrderItem[]). Panggil HANYA sekali per order,
 // yaitu saat status berubah menjadi 'cancelled'.
-const restoreStockMl = async (items = []) => {
-  for (const item of items) {
-    const product = await Product.findByPk(item.product_id);
+const restoreStockMl = async (items = [], options = {}) => {
+  // Urut product_id + kunci baris (FOR UPDATE) saat di dalam transaksi: urutan kunci
+  // sama dengan checkout sehingga tidak deadlock, dan tidak ada lost update stok.
+  const sorted = [...items].sort((a, b) => a.product_id - b.product_id);
+  for (const item of sorted) {
+    const product = await Product.findByPk(item.product_id, {
+      ...options,
+      ...(options.transaction && { lock: options.transaction.LOCK.UPDATE })
+    });
     if (!product) continue;
-    await adjustVials(product, item.size_ml, item.quantity, -item.quantity);
+    await adjustMl(product, item.size_ml, item.quantity, -item.quantity, options);
   }
 };
 
-module.exports = { mlFields, adjustVials, restoreStockMl };
+module.exports = { SIZES, maxQtyForSize, mlNeeded, mlFields, adjustMl, restoreStockMl };

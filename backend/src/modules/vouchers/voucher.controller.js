@@ -1,5 +1,16 @@
 const Voucher = require('./voucher.model');
 const { Op } = require('sequelize');
+const { evaluateVoucher } = require('../../utils/voucherRules');
+const { audit, pickKeys, changes } = require('../../utils/audit');
+
+// used_count dan voucher_id tidak boleh diubah dari klien
+const VOUCHER_FIELDS = ['code', 'type', 'value', 'min_purchase', 'max_discount', 'quota', 'is_active', 'expired_at'];
+const pickVoucher = (body = {}) => {
+  const out = {};
+  for (const k of VOUCHER_FIELDS) if (body[k] !== undefined) out[k] = body[k];
+  if (typeof out.code === 'string') out.code = out.code.toUpperCase().trim();
+  return out;
+};
 
 const checkVoucher = async (req, res) => {
   try {
@@ -7,45 +18,9 @@ const checkVoucher = async (req, res) => {
 
     if (!code) return res.status(400).json({ message: 'Kode voucher wajib diisi' });
 
-    const totalPrice = parseInt(total_price) || 0;
-
-    const voucher = await Voucher.findOne({
-      where: {
-        code: code.toUpperCase().trim(),
-        is_active: true,
-        [Op.or]: [
-          { expired_at: null },
-          { expired_at: { [Op.gt]: new Date() } }
-        ]
-      }
-    });
-
-    if (!voucher) {
-      return res.status(404).json({ message: 'Voucher tidak ditemukan atau sudah tidak aktif' });
-    }
-
-    if (voucher.used_count >= voucher.quota) {
-      return res.status(400).json({ message: 'Kuota voucher sudah habis' });
-    }
-
-    if (totalPrice < voucher.min_purchase) {
-      return res.status(400).json({
-        message: `Minimum pembelian ${new Intl.NumberFormat('id-ID', {
-          style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-        }).format(voucher.min_purchase)} untuk menggunakan voucher ini`
-      });
-    }
-
-    let discount = 0;
-    if (voucher.type === 'percentage') {
-      discount = Math.floor(totalPrice * (voucher.value / 100));
-      if (voucher.max_discount && discount > voucher.max_discount) {
-        discount = voucher.max_discount;
-      }
-    } else {
-      discount = voucher.value;
-      if (discount > totalPrice) discount = totalPrice; // jangan sampai minus
-    }
+    const result = await evaluateVoucher(code, total_price);
+    if (result.error) return res.status(result.error.status).json({ message: result.error.message });
+    const { voucher, discount } = result;
 
     return res.status(200).json({
       valid: true,
@@ -90,10 +65,11 @@ const getActiveVouchers = async (req, res) => {
 
 const createVoucher = async (req, res) => {
   try {
-    const voucher = await Voucher.create({
-      ...req.body,
-      code: req.body.code.toUpperCase().trim()
-    });
+    const data = pickVoucher(req.body);
+    if (!data.code) return res.status(400).json({ message: 'Kode voucher wajib diisi' });
+    const voucher = await Voucher.create(data);
+    await audit(req, { action: 'create', entity: 'voucher', entityId: voucher.voucher_id,
+      message: `Voucher dibuat: ${voucher.code}`, after: pickKeys(voucher, VOUCHER_FIELDS) });
     return res.status(201).json({ message: 'Voucher berhasil dibuat', voucher });
   } catch (err) {
     if (err.name === 'SequelizeUniqueConstraintError') {
@@ -116,7 +92,10 @@ const updateVoucher = async (req, res) => {
   try {
     const voucher = await Voucher.findByPk(req.params.id);
     if (!voucher) return res.status(404).json({ message: 'Voucher tidak ditemukan' });
-    await voucher.update(req.body);
+    const beforeSnap = pickKeys(voucher, VOUCHER_FIELDS);
+    await voucher.update(pickVoucher(req.body));
+    await audit(req, { action: 'update', entity: 'voucher', entityId: voucher.voucher_id,
+      message: `Voucher diubah: ${voucher.code}`, ...changes(beforeSnap, pickKeys(voucher, VOUCHER_FIELDS)) });
     return res.status(200).json({ message: 'Voucher diupdate', voucher });
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });
@@ -127,7 +106,10 @@ const deleteVoucher = async (req, res) => {
   try {
     const voucher = await Voucher.findByPk(req.params.id);
     if (!voucher) return res.status(404).json({ message: 'Voucher tidak ditemukan' });
+    const beforeSnap = pickKeys(voucher, [...VOUCHER_FIELDS, 'used_count']);
     await voucher.destroy();
+    await audit(req, { action: 'delete', entity: 'voucher', entityId: voucher.voucher_id,
+      message: `Voucher dihapus: ${voucher.code}`, before: beforeSnap });
     return res.status(200).json({ message: 'Voucher dihapus' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error' });
